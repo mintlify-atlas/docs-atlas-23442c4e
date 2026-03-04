@@ -1,0 +1,100 @@
+{
+  "projectType": "saas",
+  "projectName": "Money Tracker",
+  "projectDescription": "AI-powered personal finance tracker that automatically extracts transactions from Gmail and documents",
+  "theme": "almond",
+  "primaryColor": "#141c32",
+  "lightColor": "#a78ca3",
+  "darkColor": "#f3f4f6",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/transactions",
+              "features/gmail-integration",
+              "features/ai-extraction",
+              "features/multi-currency",
+              "features/subscriptions",
+              "features/notifications"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker-setup",
+              "deployment/environment",
+              "deployment/database",
+              "deployment/production"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Edge Functions",
+            "pages": [
+              "api/edge-functions/auth-start",
+              "api/edge-functions/auth-callback",
+              "api/edge-functions/gmail-webhook",
+              "api/edge-functions/process-document",
+              "api/edge-functions/seed-emails",
+              "api/edge-functions/renew-watches"
+            ]
+          },
+          {
+            "group": "Database",
+            "pages": [
+              "api/database/schema",
+              "api/database/rls-policies",
+              "api/database/functions"
+            ]
+          },
+          {
+            "group": "Frontend Services",
+            "pages": [
+              "api/services/gmail",
+              "api/services/notifications",
+              "api/services/document-upload"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Automatic transaction extraction from Gmail using AI",
+    "Real-time email processing via Gmail Watch and Pub/Sub",
+    "Upload receipts/invoices for AI-powered extraction",
+    "Multi-currency support with comparative analytics",
+    "Subscription tracking and renewal predictions",
+    "Smart notifications with customizable preferences",
+    "Monthly trends and category breakdowns",
+    "Multi-language interface (English/Spanish)"
+  ],
+  "publicApiSurface": [
+    "POST /auth-start - Initiate Gmail OAuth flow",
+    "GET /auth-callback - Handle OAuth callback",
+    "POST /gmail-webhook - Process incoming Gmail notifications",
+    "POST /process-document - Extract transactions from uploaded files",
+    "POST /seed-emails - Import historical emails",
+    "POST /renew-watches - Renew Gmail watch subscriptions",
+    "gmailService.connectGmail() - Start OAuth connection",
+    "gmailService.disconnectGmail() - Remove Gmail connection",
+    "uploadDocumentForAnalysis() - Upload and process documents",
+    "NotificationsService - Manage user notifications"
+  ]
+}
