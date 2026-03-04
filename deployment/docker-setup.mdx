@@ -1,0 +1,193 @@
+---
+title: 'Docker Setup'
+description: 'Run Money Tracker locally using Docker Compose with hot reload for development.'
+icon: 'docker'
+---
+
+## Overview
+
+Money Tracker uses Docker Compose to run both the frontend and Supabase stack locally. This approach requires no local installation of Bun or the Supabase CLI.
+
+## Prerequisites
+
+- Docker Desktop or Docker Engine installed
+- Docker Compose v2.0 or later
+
+## Docker services
+
+The `docker-compose.yml` file defines two main services:
+
+### Frontend service
+
+Builds from `Dockerfile.frontend` and runs the React application with Bun.
+
+- **Image**: `oven/bun:1.3.9`
+- **Port**: `3000:3000`
+- **Hot reload**: Enabled via volume mount
+- **Dependencies**: Waits for `supabase-cli` service
+
+### Supabase CLI service
+
+Builds from `Dockerfile.supabase-cli` and manages the local Supabase stack.
+
+- **Image**: `node:20-alpine` with Supabase CLI
+- **Network mode**: `host` (required for health checks)
+- **Docker access**: Mounts `/var/run/docker.sock` for nested containers
+- **Working directory**: Uses `PROJECT_ROOT` environment variable
+
+<Warning>
+  The `PROJECT_ROOT` environment variable must match your absolute host path. This ensures nested Docker mounts work correctly on both macOS and Linux.
+</Warning>
+
+## Starting the stack
+
+<Steps>
+  <Step title="Set up environment files">
+    Copy the example environment files:
+
+    ```bash
+    cp packages/frontend/.env.example packages/frontend/.env
+    cp supabase/functions/.env.example supabase/functions/.env
+    ```
+
+    Edit each `.env` file with your actual credentials. See the [Environment Variables](/deployment/environment) page for details.
+  </Step>
+
+  <Step title="Start Docker Compose">
+    Run the following command from the project root:
+
+    ```bash
+    PROJECT_ROOT=$(pwd) docker compose up --build
+    ```
+
+    This starts:
+    - Frontend at `http://localhost:3000`
+    - Supabase Studio at `http://127.0.0.1:54323`
+    - Supabase API at `http://127.0.0.1:54321`
+  </Step>
+
+  <Step title="Wait for services to be ready">
+    The first startup takes several minutes as Supabase pulls and initializes multiple containers:
+    - PostgreSQL database
+    - PostgREST API
+    - GoTrue auth server
+    - Realtime server
+    - Storage server
+    - Edge runtime for functions
+
+    Watch the logs until you see:
+    ```
+    Started supabase local development setup.
+    ```
+  </Step>
+</Steps>
+
+## Stopping the stack
+
+To stop all containers:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose down
+```
+
+<Tip>
+  To remove volumes and reset the database, add the `-v` flag:
+  ```bash
+  PROJECT_ROOT=$(pwd) docker compose down -v
+  ```
+</Tip>
+
+## Using npm/bun scripts
+
+The `package.json` includes convenience scripts that handle the `PROJECT_ROOT` variable:
+
+```bash
+bun run docker:up          # Start services
+bun run docker:down        # Stop services
+bun run docker:logs        # Stream all logs
+bun run docker:logs:frontend  # Stream frontend logs only
+```
+
+## Accessing the Supabase CLI container
+
+You can run commands inside the Supabase CLI container:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose exec supabase-cli sh
+```
+
+Once inside, you have full access to the Supabase CLI:
+
+```bash
+supabase status
+supabase db reset
+supabase gen types typescript
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Frontend fails to connect to Supabase">
+    1. Verify `packages/frontend/.env` exists with valid `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+    2. Check that Supabase is running: `docker compose ps`
+    3. View Supabase logs: `docker compose logs supabase-cli`
+  </Accordion>
+
+  <Accordion title="Port already in use errors">
+    If ports 3000, 54321, 54322, or 54323 are already in use:
+    1. Stop conflicting services
+    2. Or modify the port mappings in `docker-compose.yml` and `supabase/config.toml`
+  </Accordion>
+
+  <Accordion title="Permission denied on docker.sock">
+    On Linux, ensure your user is in the `docker` group:
+    ```bash
+    sudo usermod -aG docker $USER
+    newgrp docker
+    ```
+  </Accordion>
+
+  <Accordion title="Nested mount issues on macOS">
+    Ensure Docker Desktop has file sharing enabled for your project directory in Settings > Resources > File Sharing.
+  </Accordion>
+</AccordionGroup>
+
+## Docker image details
+
+### Dockerfile.frontend
+
+```dockerfile
+FROM oven/bun:1.3.9
+
+WORKDIR /app
+
+COPY package.json bun.lock* ./
+COPY packages/frontend/package.json packages/frontend/package.json
+
+RUN bun install --frozen-lockfile
+```
+
+The frontend Dockerfile only installs dependencies. The actual application code is mounted as a volume for hot reload during development.
+
+### Dockerfile.supabase-cli
+
+```dockerfile
+FROM node:20-alpine
+
+RUN apk add --no-cache docker-cli
+RUN mkdir -p /opt/supabase-cli \
+  && cd /opt/supabase-cli \
+  && npm init -y \
+  && npm install supabase \
+  && ln -sf /opt/supabase-cli/node_modules/.bin/supabase /usr/local/bin/supabase
+
+WORKDIR /workspace
+
+CMD ["sleep", "infinity"]
+```
+
+This image includes both the Docker CLI (for managing nested Supabase containers) and the Supabase CLI globally installed via npm.
+
+<Note>
+  The `sleep infinity` command keeps the container running. The actual Supabase start command is overridden in `docker-compose.yml`.
+</Note>

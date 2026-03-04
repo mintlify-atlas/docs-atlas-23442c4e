@@ -1,0 +1,185 @@
+---
+title: "Introduction"
+description: "Automatically track income and expenses from your Gmail inbox using AI-powered transaction extraction"
+---
+
+## What is Money Tracker?
+
+Money Tracker is a personal finance application that automatically extracts transactions from your Gmail inbox and uploaded documents using artificial intelligence. It provides real-time financial tracking, categorization, and insights across multiple currencies without requiring manual data entry.
+
+The application connects to your Gmail account via OAuth and uses xAI Grok to intelligently identify and extract transaction details from emails—turning receipts, invoices, and payment confirmations into structured financial data.
+
+## Key Features
+
+### Automatic Transaction Extraction
+
+Money Tracker uses AI (xAI Grok with structured output) to automatically analyze your emails and extract:
+- Transaction amount and currency
+- Merchant name
+- Transaction date
+- Category (groceries, utilities, entertainment, etc.)
+- Transaction type (income or expense)
+
+The AI can process:
+- Email body text (plain text and HTML)
+- Image attachments (receipts, screenshots)
+- PDF documents (invoices, statements)
+
+### Real-Time Email Processing
+
+New emails are processed as they arrive using:
+- **Gmail Watch API** to monitor your inbox
+- **Google Pub/Sub** for real-time notifications
+- **Supabase Edge Functions** for serverless processing
+
+When a transaction email arrives, it's automatically analyzed and added to your dashboard within seconds.
+
+### Historical Email Import
+
+Connect your Gmail account and automatically import the last 3 months of transaction emails. The system processes emails in chunks with:
+- Concurrent batch processing (10 emails at a time)
+- Automatic resumption if interrupted
+- Progress tracking in the database
+
+### Multi-Currency Support
+
+Track transactions in any currency with:
+- Automatic currency detection from emails
+- Comparative analytics across currencies
+- Per-currency insights and trends
+
+### Smart Categorization
+
+Transactions are automatically categorized into:
+- Groceries
+- Utilities
+- Entertainment
+- Transport
+- Healthcare
+- Shopping
+- Food & Dining
+- Subscriptions
+- Salary
+- Uncategorized
+
+Categories can be edited manually if the AI misclassifies a transaction.
+
+### Financial Insights
+
+The dashboard provides:
+- Monthly income and expense trends
+- Category breakdowns with pie charts
+- Savings calculations (income - expenses)
+- Multi-currency comparisons
+- Subscription detection (recurring payments)
+
+### Multi-Language Interface
+
+The application supports:
+- English
+- Spanish
+
+Language preference is automatically detected and can be changed in settings.
+
+## How It Works
+
+<Steps>
+  <Step title="Sign up and connect Gmail">
+    Create an account and authorize Money Tracker to access your Gmail via OAuth 2.0. The app requests read-only access to your emails.
+  </Step>
+  
+  <Step title="Initial import">
+    Money Tracker automatically imports and analyzes your last 3 months of emails, extracting any transaction-related messages.
+  </Step>
+  
+  <Step title="Real-time monitoring">
+    A Gmail Watch is set up to monitor your inbox. New emails are sent to Google Pub/Sub, which triggers a webhook to process them immediately.
+  </Step>
+  
+  <Step title="AI extraction">
+    Each email is analyzed by xAI Grok, which identifies if it contains transaction information and extracts structured data (amount, merchant, category, date).
+  </Step>
+  
+  <Step title="View and manage">
+    Transactions appear in your dashboard in real-time. You can filter, edit, delete, or manually add transactions. The dashboard updates automatically using Supabase Realtime.
+  </Step>
+</Steps>
+
+<Note>
+  Money Tracker only stores transaction data extracted from emails—it does not store email content, attachments, or personal messages. Non-transaction emails are marked as "discarded" with no content saved.
+</Note>
+
+## Use Cases
+
+### Personal Finance Tracking
+
+Automatically track all your online purchases, subscription payments, and digital transactions without manual entry. Perfect for:
+- E-commerce purchases (Amazon, eBay, etc.)
+- Subscription services (Netflix, Spotify, SaaS tools)
+- Utility bills (electricity, internet, phone)
+- Online food delivery (Uber Eats, DoorDash)
+
+### Freelancer Income Management
+
+Track payments from clients who send invoices or payment confirmations via email:
+- PayPal payment notifications
+- Stripe payment confirmations
+- Direct deposit notifications
+- Client invoice emails
+
+### Expense Reporting
+
+Build expense reports from receipt emails:
+- Upload receipt photos for AI extraction
+- Track business vs. personal expenses
+- Export transaction data for reimbursement
+
+### Multi-Currency Travel Expenses
+
+When traveling internationally:
+- Track expenses in multiple currencies
+- Compare spending across different countries
+- Monitor exchange rate impacts on your budget
+
+### Subscription Audit
+
+Identify recurring payments and subscription services:
+- Detect monthly, quarterly, and annual subscriptions
+- Find subscriptions you may have forgotten about
+- Monitor subscription cost trends over time
+
+## Privacy and Security
+
+<Warning>
+  Money Tracker requires read access to your Gmail inbox. Your credentials are never stored—only OAuth tokens (access and refresh tokens) are saved in an encrypted database.
+</Warning>
+
+Security measures:
+- **OAuth 2.0**: Secure authentication without storing passwords
+- **Encrypted tokens**: OAuth tokens are stored in Supabase with encryption
+- **Row-Level Security (RLS)**: Database policies ensure users can only access their own data
+- **No email storage**: Email content is never stored—only extracted transaction data
+- **Audit trail**: All AI operations are traced using Langfuse
+
+## Architecture Overview
+
+Money Tracker is built with modern, scalable technologies:
+
+- **Frontend**: React with TanStack Query for state management
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions, Realtime)
+- **AI**: xAI Grok with Zod schema validation for structured output
+- **Integrations**: Gmail API, Google OAuth 2.0, Google Pub/Sub
+- **Observability**: Langfuse for AI operation tracing
+
+The entire stack runs locally using Docker Compose for development, making it easy to test and customize.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get Money Tracker running locally in minutes
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Learn how the system works under the hood
+  </Card>
+</CardGroup>

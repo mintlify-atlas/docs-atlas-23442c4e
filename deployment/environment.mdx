@@ -1,0 +1,261 @@
+---
+title: 'Environment Variables'
+description: 'Complete reference for all environment variables required by Money Tracker.'
+icon: 'gear'
+---
+
+## Overview
+
+Money Tracker requires environment variables in two locations:
+
+1. `packages/frontend/.env` - Frontend application configuration
+2. `supabase/functions/.env` - Edge Functions configuration
+
+Create these files from the provided examples:
+
+```bash
+cp packages/frontend/.env.example packages/frontend/.env
+cp supabase/functions/.env.example supabase/functions/.env
+```
+
+## Frontend variables
+
+Location: `packages/frontend/.env`
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  The Supabase project URL.
+  
+  - **Local**: `http://127.0.0.1:54321`
+  - **Production**: `https://your-project-ref.supabase.co`
+</ParamField>
+
+<ParamField path="SUPABASE_ANON_KEY" type="string" required>
+  The Supabase anonymous (public) API key. This key is safe to use in browser code.
+  
+  - **Local**: Displayed in terminal after running `supabase start`
+  - **Production**: Found in Supabase Dashboard under Settings > API
+</ParamField>
+
+<ParamField path="PORT" type="number" default="3000">
+  The port where the frontend development server runs.
+</ParamField>
+
+<ParamField path="XAI_API_KEY" type="string">
+  Optional xAI API key for running E2E tests that involve AI extraction.
+</ParamField>
+
+### Example frontend .env
+
+```bash
+# Local development
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+PORT=3000
+XAI_API_KEY=
+```
+
+## Edge Functions variables
+
+Location: `supabase/functions/.env`
+
+### Supabase configuration
+
+<ParamField path="SUPABASE_URL" type="string" required>
+  The Supabase project URL. Must match the frontend value.
+  
+  - **Local**: `http://127.0.0.1:54321`
+  - **Production**: `https://your-project-ref.supabase.co`
+</ParamField>
+
+<ParamField path="SUPABASE_ANON_KEY" type="string" required>
+  The Supabase anonymous API key.
+</ParamField>
+
+<ParamField path="SUPABASE_SERVICE_ROLE_KEY" type="string" required>
+  The Supabase service role key with elevated privileges. Bypass RLS policies and manage users.
+  
+  <Warning>
+    Never expose this key in client-side code or commit it to version control.
+  </Warning>
+</ParamField>
+
+<ParamField path="FRONTEND_URL" type="string" required>
+  The URL of your frontend application for OAuth redirects.
+  
+  - **Local**: `http://localhost:3000`
+  - **Production**: `https://your-domain.com`
+</ParamField>
+
+### Google OAuth configuration
+
+<ParamField path="GOOGLE_CLIENT_ID" type="string" required>
+  OAuth 2.0 client ID from Google Cloud Console. Required for Gmail integration.
+</ParamField>
+
+<ParamField path="GOOGLE_CLIENT_SECRET" type="string" required>
+  OAuth 2.0 client secret from Google Cloud Console.
+  
+  <Warning>
+    Keep this secret secure. Never commit to version control.
+  </Warning>
+</ParamField>
+
+<ParamField path="OAUTH_REDIRECT_URI" type="string" required>
+  The OAuth callback URL. Must match the authorized redirect URI in Google Cloud Console.
+  
+  - **Local**: `http://localhost:3000/auth/callback`
+  - **Production**: `https://your-domain.com/auth/callback`
+</ParamField>
+
+<ParamField path="GOOGLE_PROJECT_ID" type="string" required>
+  Your Google Cloud project ID. Required for Pub/Sub integration.
+</ParamField>
+
+<ParamField path="PUBSUB_TOPIC" type="string" required>
+  The Google Cloud Pub/Sub topic name for Gmail push notifications.
+  
+  Example: `gmail-notifications`
+</ParamField>
+
+### AI configuration
+
+<ParamField path="XAI_API_KEY" type="string" required>
+  API key for xAI Grok model. Used for extracting transaction data from emails and documents.
+  
+  Get your key from [x.ai](https://x.ai/).
+</ParamField>
+
+### Langfuse configuration
+
+Langfuse provides observability for AI operations.
+
+<ParamField path="LANGFUSE_SECRET_KEY" type="string">
+  Langfuse secret key for authentication.
+</ParamField>
+
+<ParamField path="LANGFUSE_PUBLIC_KEY" type="string">
+  Langfuse public key for authentication.
+</ParamField>
+
+<ParamField path="LANGFUSE_BASE_URL" type="string" default="https://cloud.langfuse.com">
+  Langfuse API base URL. Use default for cloud hosting or your self-hosted URL.
+</ParamField>
+
+### CORS configuration
+
+<ParamField path="CORS_ALLOWED_ORIGINS" type="string" required>
+  Comma-separated list of allowed origins for CORS.
+  
+  Example: `http://localhost:3000,http://127.0.0.1:3000`
+</ParamField>
+
+<ParamField path="CORS_ALLOW_CREDENTIALS" type="boolean" default="false">
+  Whether to allow credentials in CORS requests.
+</ParamField>
+
+### Internal authentication
+
+<ParamField path="INTERNAL_FUNCTIONS_SECRET" type="string" required>
+  Internal secret token for edge function authentication. Used by the `renew-watches` cron job.
+  
+  - **Local**: `local-dev-internal-secret` (matches seed data)
+  - **Production**: Generate a secure random string
+  
+  <Warning>
+    This value must also be stored in the Supabase Vault. See [Database Setup](/deployment/database#vault-secrets) for instructions.
+  </Warning>
+</ParamField>
+
+<ParamField path="ENVIRONMENT" type="string" default="development">
+  Optional runtime environment identifier for logging and debugging.
+</ParamField>
+
+### Example Edge Functions .env
+
+```bash
+# Supabase
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
+FRONTEND_URL=http://localhost:3000
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+GOOGLE_PROJECT_ID=your_google_project_id
+PUBSUB_TOPIC=gmail-notifications
+
+# AI
+XAI_API_KEY=your_xai_api_key_here
+
+# Langfuse (Optional)
+LANGFUSE_SECRET_KEY=your_langfuse_secret_key
+LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
+# CORS
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ALLOW_CREDENTIALS=false
+
+# Internal
+INTERNAL_FUNCTIONS_SECRET=local-dev-internal-secret
+ENVIRONMENT=development
+```
+
+## Production deployment
+
+For production deployments, set Edge Functions secrets using the Supabase CLI or Dashboard.
+
+### Using the CLI
+
+```bash
+supabase secrets set \
+  SUPABASE_URL=... \
+  SUPABASE_ANON_KEY=... \
+  SUPABASE_SERVICE_ROLE_KEY=... \
+  FRONTEND_URL=... \
+  GOOGLE_CLIENT_ID=... \
+  GOOGLE_CLIENT_SECRET=... \
+  OAUTH_REDIRECT_URI=... \
+  GOOGLE_PROJECT_ID=... \
+  PUBSUB_TOPIC=... \
+  XAI_API_KEY=... \
+  LANGFUSE_SECRET_KEY=... \
+  LANGFUSE_PUBLIC_KEY=... \
+  LANGFUSE_BASE_URL=... \
+  CORS_ALLOWED_ORIGINS=https://your-domain.com \
+  CORS_ALLOW_CREDENTIALS=false \
+  INTERNAL_FUNCTIONS_SECRET=...
+```
+
+<Tip>
+  Generate a cryptographically secure value for `INTERNAL_FUNCTIONS_SECRET` in production:
+  ```bash
+  openssl rand -base64 32
+  ```
+</Tip>
+
+### Using the Dashboard
+
+1. Navigate to your project in the Supabase Dashboard
+2. Go to Settings > Edge Functions
+3. Click "Add secret"
+4. Enter each key-value pair
+
+<Note>
+  After setting secrets, you must redeploy your Edge Functions for the new values to take effect.
+</Note>
+
+## Security best practices
+
+<Warning>
+  Never commit `.env` files to version control. The `.env.example` files are for reference only.
+</Warning>
+
+- Add `.env` to your `.gitignore` file
+- Use different values for local and production environments
+- Rotate secrets regularly, especially after team member departures
+- Use environment-specific service accounts for Google Cloud integration
+- Monitor API usage for unusual patterns
+- Enable Google Cloud audit logging for OAuth and Pub/Sub access

@@ -1,0 +1,293 @@
+---
+title: Gmail Service
+description: Service for managing Gmail OAuth connections and watches
+---
+
+The Gmail service provides methods for connecting Gmail accounts, managing OAuth tokens, and monitoring Gmail watches for automatic transaction detection.
+
+## Installation
+
+```typescript
+import { gmailService } from '../services/gmail.service';
+```
+
+## Types
+
+### GmailConnection
+
+Represents a Gmail OAuth connection.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the connection
+</ResponseField>
+
+<ResponseField name="gmail_email" type="string" required>
+  The connected Gmail email address
+</ResponseField>
+
+<ResponseField name="connected_at" type="string" required>
+  ISO 8601 timestamp when the connection was established
+</ResponseField>
+
+<ResponseField name="expires_at" type="string">
+  ISO 8601 timestamp when the OAuth token expires
+</ResponseField>
+
+<ResponseField name="is_active" type="boolean" required>
+  Whether the connection is currently active
+</ResponseField>
+
+<ResponseField name="status" type="'connected' | 'needs_reconnect' | 'disconnected'" required>
+  Current status of the connection
+</ResponseField>
+
+### GmailStatus
+
+Aggregated status information for all Gmail connections.
+
+<ResponseField name="connections" type="GmailConnection[]" required>
+  Array of all Gmail connections
+</ResponseField>
+
+<ResponseField name="total" type="number" required>
+  Total number of connections
+</ResponseField>
+
+<ResponseField name="activeTotal" type="number" required>
+  Number of active connections (connected + needs_reconnect)
+</ResponseField>
+
+<ResponseField name="connectedTotal" type="number" required>
+  Number of fully connected accounts
+</ResponseField>
+
+<ResponseField name="needsReconnectTotal" type="number" required>
+  Number of accounts that need reconnection
+</ResponseField>
+
+<ResponseField name="disconnectedTotal" type="number" required>
+  Number of disconnected accounts
+</ResponseField>
+
+### GmailWatch
+
+Represents a Gmail API watch for push notifications.
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the watch
+</ResponseField>
+
+<ResponseField name="gmail_email" type="string" required>
+  Email address being watched
+</ResponseField>
+
+<ResponseField name="watch_id" type="string" required>
+  Gmail API watch identifier
+</ResponseField>
+
+<ResponseField name="topic_name" type="string" required>
+  Pub/Sub topic name for notifications
+</ResponseField>
+
+<ResponseField name="expiration" type="string" required>
+  ISO 8601 timestamp when the watch expires
+</ResponseField>
+
+<ResponseField name="is_active" type="boolean" required>
+  Whether the watch is currently active
+</ResponseField>
+
+## Methods
+
+### getConnectionStatus
+
+Retrieves the Gmail connection status for a user with caching.
+
+```typescript
+async getConnectionStatus(userId: string): Promise<GmailStatus>
+```
+
+<ParamField path="userId" type="string" required>
+  The user ID to fetch connection status for
+</ParamField>
+
+<ResponseField name="returns" type="Promise<GmailStatus>">
+  The aggregated Gmail connection status
+</ResponseField>
+
+<Note>
+  Results are cached for 60 seconds to reduce database queries. Use `clearConnectionStatusCache()` to invalidate the cache when making connection changes.
+</Note>
+
+#### Example
+
+```typescript
+import { gmailService } from '../services/gmail.service';
+
+const status = await gmailService.getConnectionStatus(userId);
+
+if (status.connectedTotal > 0) {
+  console.log(`User has ${status.connectedTotal} connected Gmail accounts`);
+}
+
+if (status.needsReconnectTotal > 0) {
+  console.log(`${status.needsReconnectTotal} accounts need reconnection`);
+}
+```
+
+### getWatches
+
+Retrieves active Gmail watches for a user.
+
+```typescript
+async getWatches(userId: string): Promise<GmailWatch[]>
+```
+
+<ParamField path="userId" type="string" required>
+  The user ID to fetch watches for
+</ParamField>
+
+<ResponseField name="returns" type="Promise<GmailWatch[]>">
+  Array of active Gmail watches, empty array if none found or on error
+</ResponseField>
+
+#### Example
+
+```typescript
+const watches = await gmailService.getWatches(userId);
+
+watches.forEach(watch => {
+  console.log(`Watching ${watch.gmail_email} until ${watch.expiration}`);
+});
+```
+
+### connectGmail
+
+Initiates the Gmail OAuth connection flow by redirecting to the authentication endpoint.
+
+```typescript
+async connectGmail(): Promise<void>
+```
+
+<Note>
+  This method redirects the user to the OAuth flow and does not return. It requires an active Supabase session.
+</Note>
+
+**Throws:**
+- Error if no active session exists
+- Error if user cannot be retrieved
+
+#### Example
+
+```typescript
+import { gmailService } from '../services/gmail.service';
+
+try {
+  await gmailService.connectGmail();
+  // User will be redirected to OAuth flow
+} catch (error) {
+  console.error('Failed to start Gmail connection:', error);
+  alert('Please refresh the page and try again.');
+}
+```
+
+### disconnectGmail
+
+Disconnects a Gmail account by revoking the OAuth token.
+
+```typescript
+async disconnectGmail(connectionId: string): Promise<{
+  success: boolean;
+  error?: string;
+}>
+```
+
+<ParamField path="connectionId" type="string" required>
+  The ID of the Gmail connection to disconnect
+</ParamField>
+
+<ResponseField name="success" type="boolean" required>
+  Whether the disconnection was successful
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if the disconnection failed
+</ResponseField>
+
+#### Example
+
+```typescript
+const result = await gmailService.disconnectGmail(connectionId);
+
+if (result.success) {
+  // Clear the cache to refresh UI
+  gmailService.clearConnectionStatusCache(userId);
+  console.log('Gmail account disconnected successfully');
+} else {
+  console.error('Failed to disconnect:', result.error);
+}
+```
+
+### clearConnectionStatusCache
+
+Clears the cached Gmail connection status.
+
+```typescript
+clearConnectionStatusCache(userId?: string): void
+```
+
+<ParamField path="userId" type="string">
+  Optional user ID. If provided, clears cache only for that user. If omitted, clears all cached statuses.
+</ParamField>
+
+#### Example
+
+```typescript
+// Clear cache for specific user
+gmailService.clearConnectionStatusCache(userId);
+
+// Clear all cached statuses
+gmailService.clearConnectionStatusCache();
+```
+
+## Error Handling
+
+All async methods may throw errors. It's recommended to wrap calls in try-catch blocks:
+
+```typescript
+try {
+  const status = await gmailService.getConnectionStatus(userId);
+  // Handle success
+} catch (error) {
+  console.error('Failed to fetch Gmail status:', error);
+  // Handle error
+}
+```
+
+## Dependencies
+
+- **Supabase Client**: Uses `getSupabase()` for database queries and authentication
+- **Edge Functions**: Calls the following Supabase Edge Functions:
+  - `auth-start`: Initiates OAuth flow
+  - `gmail-disconnect`: Revokes OAuth tokens
+- **Database Tables**:
+  - `user_oauth_tokens`: Stores OAuth connection data
+  - `gmail_watches`: Stores Gmail watch configurations
+
+## Usage with React Query
+
+The service is typically used with React Query hooks for automatic caching and updates:
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+import { gmailService } from '../services/gmail.service';
+
+function useGmailStatus(userId?: string) {
+  return useQuery({
+    queryKey: ['gmail', 'status', userId],
+    queryFn: () => gmailService.getConnectionStatus(userId!),
+    enabled: !!userId,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+}
+```

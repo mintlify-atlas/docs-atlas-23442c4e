@@ -1,97 +1,266 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Money Tracker Documentation"
+description: "AI-powered personal finance tracking with automatic transaction extraction"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#0f1117] bg-white">
+  {/* Hero Section */}
+  <div className="relative py-20 px-4 sm:px-6 lg:px-8" style={{ background: 'linear-gradient(135deg, #141c32 0%, #1e2740 100%)' }}>
+    <div className="max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div className="lg:col-span-7">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+            Smart Finance Tracking with AI
+          </h1>
+          <p className="text-lg sm:text-xl text-gray-300 mb-8 max-w-2xl">
+            Automatically extract and categorize transactions from your Gmail inbox and uploaded documents. Get real-time insights across multiple currencies.
+          </p>
+          <div className="flex flex-wrap gap-4">
+            <a 
+              href="/quickstart" 
+              className="inline-flex items-center px-6 py-3 rounded-lg font-semibold text-white transition-colors"
+              style={{ backgroundColor: '#466487' }}
+            >
+              Get Started
+              <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+            <a 
+              href="/architecture" 
+              className="inline-flex items-center px-6 py-3 rounded-lg font-semibold text-white border border-white/30 bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              View Architecture
+            </a>
+          </div>
+        </div>
+        <div className="lg:col-span-5 flex justify-center">
+          <div className="relative w-full max-w-md">
+            <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-2xl p-6 border dark:border-[#27272a] border-gray-200 shadow-2xl">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#466487' }}>
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <div className="dark:text-gray-100 text-gray-900 font-semibold text-sm">Gmail Connected</div>
+                    <div className="dark:text-gray-400 text-gray-600 text-xs">Auto-extracting transactions</div>
+                  </div>
+                </div>
+                <div className="dark:bg-[#242838] bg-gray-100 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="dark:text-gray-400 text-gray-600 text-xs">This Month</span>
+                    <span className="text-green-500 text-xs font-semibold">+12%</span>
+                  </div>
+                  <div className="dark:text-gray-100 text-gray-900 text-2xl font-bold mb-1">$4,250.00</div>
+                  <div className="dark:text-gray-400 text-gray-600 text-xs">127 transactions tracked</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-Get your documentation site up and running in minutes.
+  {/* Quick Start Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-3">
+      Get started in minutes
+    </h2>
+    <p className="dark:text-gray-400 text-gray-600 text-base mb-8">
+      Connect your Gmail account and start tracking your finances automatically
+    </p>
+    
+    <Steps>
+      <Step title="Set up your environment">
+        Clone the repository and create your environment configuration files:
+        
+        ```bash
+        cp packages/frontend/.env.example packages/frontend/.env
+        cp supabase/functions/.env.example supabase/functions/.env
+        ```
+        
+        Edit each `.env` file with your Supabase credentials, Google OAuth settings, and xAI API key.
+      </Step>
+      
+      <Step title="Launch with Docker">
+        Start the complete stack including frontend, Supabase, and edge functions:
+        
+        ```bash
+        PROJECT_ROOT=$(pwd) docker compose up --build
+        ```
+        
+        The app will be available at `http://localhost:3000` with hot reload enabled.
+      </Step>
+      
+      <Step title="Connect your Gmail">
+        Sign up with a new account, then navigate to **Settings** to connect your Gmail account via OAuth. Money Tracker will automatically import your last 3 months of transaction emails and process new ones in real-time.
+      </Step>
+    </Steps>
+  </div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+  {/* Core Features Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-3">
+      Core features
+    </h2>
+    <p className="dark:text-gray-400 text-gray-600 text-base mb-8">
+      Everything you need for automated personal finance tracking
+    </p>
+    
+    <CardGroup cols={3}>
+      <Card
+        title="Gmail Integration"
+        icon="envelope"
+        href="/features/gmail-integration"
+      >
+        OAuth connection with real-time email processing via Gmail Watch and Pub/Sub
+      </Card>
+      <Card
+        title="AI Extraction"
+        icon="sparkles"
+        href="/features/ai-extraction"
+      >
+        Powered by xAI Grok to extract amounts, merchants, categories, and dates
+      </Card>
+      <Card
+        title="Multi-Currency"
+        icon="globe"
+        href="/features/multi-currency"
+      >
+        Track expenses in multiple currencies with comparative analytics
+      </Card>
+      <Card
+        title="Transactions"
+        icon="receipt"
+        href="/features/transactions"
+      >
+        Manage all your financial transactions with filters, search, and editing
+      </Card>
+      <Card
+        title="Subscriptions"
+        icon="calendar-check"
+        href="/features/subscriptions"
+      >
+        Automatic detection and tracking of recurring subscription payments
+      </Card>
+      <Card
+        title="Notifications"
+        icon="bell"
+        href="/features/notifications"
+      >
+        Smart alerts with customizable preferences for important financial events
+      </Card>
+    </CardGroup>
+  </div>
 
-## Make it yours
+  {/* Deployment Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-3">
+      Deployment & Configuration
+    </h2>
+    <p className="dark:text-gray-400 text-gray-600 text-base mb-8">
+      Set up Money Tracker locally or in production
+    </p>
+    
+    <CardGroup cols={2}>
+      <Card
+        title="Docker Setup"
+        icon="docker"
+        href="/deployment/docker-setup"
+      >
+        Run the complete stack with Docker Compose for local development
+      </Card>
+      <Card
+        title="Environment Variables"
+        icon="key"
+        href="/deployment/environment"
+      >
+        Configure OAuth credentials, AI API keys, and Supabase settings
+      </Card>
+      <Card
+        title="Database Management"
+        icon="database"
+        href="/deployment/database"
+      >
+        Migrations, seeds, and schema management with Supabase CLI
+      </Card>
+      <Card
+        title="Production Deployment"
+        icon="rocket"
+        href="/deployment/production"
+      >
+        Deploy edge functions and configure production secrets
+      </Card>
+    </CardGroup>
+  </div>
 
-Design a docs site that looks great and empowers your users.
+  {/* API Reference Section */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-3">
+      API Reference
+    </h2>
+    <p className="dark:text-gray-400 text-gray-600 text-base mb-8">
+      Explore the edge functions, database schema, and frontend services
+    </p>
+    
+    <CardGroup cols={2}>
+      <Card
+        title="Edge Functions"
+        icon="code"
+        href="/api/edge-functions/auth-start"
+      >
+        Supabase Edge Functions for OAuth, webhooks, and AI processing
+      </Card>
+      <Card
+        title="Database Schema"
+        icon="table"
+        href="/api/database/schema"
+      >
+        PostgreSQL tables, RLS policies, and database functions
+      </Card>
+      <Card
+        title="Frontend Services"
+        icon="browser"
+        href="/api/services/gmail"
+      >
+        TypeScript services for Gmail, notifications, and document upload
+      </Card>
+      <Card
+        title="Tech Stack"
+        icon="layer-group"
+        href="/architecture"
+      >
+        React, Supabase, xAI Grok, Gmail API, and Google Pub/Sub
+      </Card>
+    </CardGroup>
+  </div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+  {/* Closing CTA */}
+  <div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+    <div className="dark:bg-[#1a1d27] bg-gray-50 rounded-2xl p-8 sm:p-12 border dark:border-[#27272a] border-gray-200">
+      <div className="text-center max-w-2xl mx-auto">
+        <h2 className="text-2xl sm:text-3xl font-semibold dark:text-white text-gray-900 mb-4">
+          Ready to automate your finances?
+        </h2>
+        <p className="dark:text-gray-400 text-gray-600 text-base mb-6">
+          Start tracking your transactions automatically with AI-powered extraction from Gmail and documents.
+        </p>
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center px-6 py-3 rounded-lg font-semibold text-white transition-colors"
+          style={{ backgroundColor: '#466487' }}
+        >
+          Get Started Now
+          <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,331 @@
+---
+title: 'Database Management'
+description: 'Manage database migrations, seeds, and schema updates for Money Tracker.'
+icon: 'database'
+---
+
+## Overview
+
+Money Tracker uses Supabase's PostgreSQL database with migrations and seed files for schema management. The database includes:
+
+- User authentication (via Supabase Auth)
+- Gmail OAuth connections
+- Transactions and categories
+- Notification system
+- Subscription detection
+- Vault for secure secrets
+
+## Database commands
+
+All database commands run inside the `supabase-cli` Docker container.
+
+<Tabs>
+  <Tab title="Docker Compose">
+    ```bash
+    # Reset database (drop all data, run migrations, run seeds)
+    PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase db reset --local"
+
+    # Apply pending migrations only
+    PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase migration up --include-all --local"
+
+    # Generate TypeScript types from schema
+    PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase gen types typescript --local > packages/frontend/src/types/database.types.ts"
+    ```
+  </Tab>
+  <Tab title="npm/bun scripts">
+    ```bash
+    # Reset database
+    bun run docker:db:reset
+
+    # Apply pending migrations
+    bun run docker:db:migration:up
+
+    # Generate TypeScript types
+    bun run docker:db:types
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  `supabase db reset` drops all existing data. Only use this in development or when you explicitly want to start fresh.
+</Warning>
+
+## Migrations
+
+Migrations are SQL files in `supabase/migrations/` that define your database schema. They run in alphanumeric order.
+
+### Migration structure
+
+Key migrations include:
+
+| Migration | Description |
+|-----------|-------------|
+| `20260117123342_create_multi_user_gmail_schema.sql` | Creates `gmail_connections` table for OAuth tokens |
+| `20260117141500_add_token_encryption_and_rls.sql` | Adds encryption and Row Level Security |
+| `20260117200633_refactor_emails_to_transactions.sql` | Creates `transactions` table |
+| `20260117210838_add_category_column.sql` | Adds transaction categories |
+| `20260117231531_add_recipient_email_to_transactions.sql` | Adds recipient email tracking |
+| `20260118042626_enable_realtime_and_rls_for_transactions.sql` | Enables real-time subscriptions |
+| `20260119003509_add_discarded_emails_table.sql` | Creates table for non-transaction emails |
+| `20260127023727_add_pg_cron_and_gmail_watch_renewal.sql` | Sets up cron job for Gmail watch renewal |
+| `20260207151917_add_gmail_rpcs.sql` | Adds RPC functions for Gmail operations |
+| `20260301224407_create_notification_system.sql` | Creates notification tables and triggers |
+| `20260303025417_add_subscription_candidates_rpc.sql` | Adds subscription detection logic |
+
+### Creating a new migration
+
+Inside the Supabase CLI container:
+
+```bash
+supabase migration new your_migration_name
+```
+
+This creates a timestamped SQL file in `supabase/migrations/`.
+
+<Tip>
+  Use descriptive migration names that explain the change, like `add_transaction_notes_column` or `create_budgets_table`.
+</Tip>
+
+### Applying migrations
+
+Migrations automatically run during:
+- `supabase db reset` (full reset + migrations + seeds)
+- `supabase migration up` (pending migrations only)
+- `supabase start` (on first run)
+
+To apply migrations to a remote project:
+
+```bash
+supabase db push
+```
+
+## Seed data
+
+Seeds are SQL files in `supabase/seeds/` that populate initial data. They run after migrations during `db reset`.
+
+### Seed files
+
+<ParamField path="001_auth_test_user.sql" type="auth">
+  Creates a test user account for local development.
+  
+  - **Email**: `user@test.com`
+  - **Password**: `password123`
+  
+  This account is recreated on every reset with the same credentials.
+</ParamField>
+
+<ParamField path="002_transactions_test_user.sql" type="transactions">
+  Inserts 132 demo transactions for the test account spanning multiple months.
+  
+  Includes:
+  - Various categories (groceries, transport, salary, subscriptions)
+  - Multiple currencies (USD, EUR, GBP)
+  - Both income and expense transactions
+</ParamField>
+
+<ParamField path="003_gmail_connections_demo.sql" type="gmail">
+  Seeds sample Gmail connection data for testing.
+</ParamField>
+
+<ParamField path="004_notifications_demo.sql" type="notifications">
+  Creates sample notifications for the test account.
+</ParamField>
+
+<ParamField path="005_internal_functions_secret_local.sql" type="vault">
+  Upserts the `INTERNAL_FUNCTIONS_SECRET` into Supabase Vault.
+  
+  **Local value**: `local-dev-internal-secret`
+  
+  This must match the value in `supabase/functions/.env`.
+</ParamField>
+
+### Seed configuration
+
+Seeds are configured in `supabase/config.toml`:
+
+```toml
+[db.seed]
+enabled = true
+sql_paths = ["./seeds/*.sql"]
+```
+
+Seeds run automatically during `db reset`. To skip seeds:
+
+```bash
+supabase db reset --local --skip-seed
+```
+
+## Vault secrets
+
+The `renew_gmail_watches()` database function reads `INTERNAL_FUNCTIONS_SECRET` from Supabase Vault to authenticate edge function calls.
+
+### Local development
+
+The seed file `005_internal_functions_secret_local.sql` automatically sets this value to `local-dev-internal-secret`.
+
+### Production
+
+Manually create the Vault secret in your remote database:
+
+<Steps>
+  <Step title="Generate a secure secret">
+    ```bash
+    openssl rand -base64 32
+    ```
+  </Step>
+
+  <Step title="Create the Vault secret">
+    Connect to your database and run:
+
+    ```sql
+    select vault.create_secret(
+      'YOUR_GENERATED_SECRET_HERE',
+      'INTERNAL_FUNCTIONS_SECRET',
+      'Internal token used by renew_gmail_watches()'
+    );
+    ```
+  </Step>
+
+  <Step title="Set the matching Edge Functions secret">
+    ```bash
+    supabase secrets set INTERNAL_FUNCTIONS_SECRET=YOUR_GENERATED_SECRET_HERE
+    ```
+  </Step>
+
+  <Step title="Verify the secret">
+    ```sql
+    select name, length(decrypted_secret) as secret_len, updated_at
+    from vault.decrypted_secrets
+    where name = 'INTERNAL_FUNCTIONS_SECRET';
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  The Vault secret and Edge Functions secret must match exactly, or the cron job will fail to authenticate.
+</Warning>
+
+### Updating Vault secrets
+
+To update an existing Vault secret:
+
+```sql
+select vault.update_secret(
+  (
+    select id
+    from vault.decrypted_secrets
+    where name = 'INTERNAL_FUNCTIONS_SECRET'
+    limit 1
+  ),
+  'YOUR_NEW_SECRET',
+  'INTERNAL_FUNCTIONS_SECRET',
+  'Internal token used by renew_gmail_watches()'
+);
+```
+
+## Row Level Security (RLS)
+
+All tables have Row Level Security enabled to ensure users can only access their own data.
+
+### RLS policies
+
+- `transactions`: Users can read/write only their own transactions
+- `gmail_connections`: Users can read/write only their own connections
+- `notifications`: Users can read/write only their own notifications
+- `seed_jobs`: Users can read/write only their own seed jobs
+- `discarded_emails`: Users can read/write only their own discarded emails
+
+### Service role access
+
+Edge Functions use the `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS when necessary, such as:
+- Processing incoming Gmail webhooks
+- Running background jobs
+- Renewing Gmail watches via cron
+
+## Realtime subscriptions
+
+The following tables have realtime enabled for instant updates:
+
+- `transactions` - New transactions appear immediately
+- `notifications` - Notifications update in real-time
+- `seed_jobs` - Progress updates during email import
+
+### Enabling realtime on new tables
+
+In your migration:
+
+```sql
+alter publication supabase_realtime add table your_table_name;
+```
+
+## Schema reference
+
+### Key tables
+
+**gmail_connections**
+- `id` (uuid, primary key)
+- `user_id` (uuid, foreign key to auth.users)
+- `email` (text, user's Gmail address)
+- `access_token` (text, encrypted)
+- `refresh_token` (text, encrypted)
+- `watch_expiration` (timestamptz, when Gmail watch expires)
+- `history_id` (text, last processed history ID)
+
+**transactions**
+- `id` (uuid, primary key)
+- `user_id` (uuid, foreign key to auth.users)
+- `amount` (numeric, transaction amount)
+- `currency` (text, ISO currency code)
+- `merchant` (text, merchant name)
+- `category` (text, transaction category)
+- `transaction_type` (text, 'income' or 'expense')
+- `transaction_date` (date, when transaction occurred)
+- `source_type` (text, 'email' or 'manual')
+- `source_message_id` (text, Gmail message ID if from email)
+
+**notifications**
+- `id` (uuid, primary key)
+- `user_id` (uuid, foreign key to auth.users)
+- `type` (text, notification type)
+- `title` (text, notification title)
+- `message` (text, notification message)
+- `read` (boolean, read status)
+- `metadata` (jsonb, additional data)
+
+## Generating TypeScript types
+
+After making schema changes, regenerate TypeScript types:
+
+```bash
+bun run docker:db:types
+```
+
+This updates `packages/frontend/src/types/database.types.ts` with the latest schema.
+
+<Tip>
+  Commit the generated types file to version control so all developers have the latest schema definitions.
+</Tip>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Migration fails with foreign key error">
+    Ensure referenced tables exist before creating foreign keys. Check migration order by filename timestamp.
+  </Accordion>
+
+  <Accordion title="Seed data not appearing after reset">
+    1. Verify seeds are enabled in `supabase/config.toml`
+    2. Check seed file syntax for SQL errors
+    3. Review logs: `docker compose logs supabase-cli`
+  </Accordion>
+
+  <Accordion title="RLS policy blocks my query">
+    Ensure the user is authenticated and the policy allows the operation. Test with the service role key to bypass RLS during debugging.
+  </Accordion>
+
+  <Accordion title="Realtime not working">
+    1. Check that the table has realtime enabled: `alter publication supabase_realtime add table your_table;`
+    2. Verify RLS policies allow the user to select from the table
+    3. Ensure the frontend is subscribed to the correct channel
+  </Accordion>
+</AccordionGroup>

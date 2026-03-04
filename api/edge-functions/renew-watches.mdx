@@ -1,0 +1,412 @@
+---
+title: 'renew-watches'
+description: 'Automatically renew expiring Gmail push notification watches'
+---
+
+## Overview
+
+Automatically renews Gmail push notification watches before they expire. Gmail watches expire after 7 days and must be renewed to continue receiving real-time notifications. This function should be run periodically (e.g., via cron job).
+
+## Endpoint
+
+```
+POST /functions/v1/renew-watches
+```
+
+## Authentication
+
+Requires internal authentication. This endpoint is designed to be called by scheduled jobs (cron) or internal services only.
+
+<Warning>
+This endpoint should not be exposed to public access. Use internal authentication tokens or restrict access via network policies.
+</Warning>
+
+### Headers
+
+<ParamField header="Authorization" type="string" required>
+  Internal service authentication token
+  
+  Format: `Bearer {internal_token}`
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`
+</ParamField>
+
+### Example Request
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/renew-watches' \
+  --header 'Authorization: Bearer {INTERNAL_SERVICE_TOKEN}' \
+  --header 'Content-Type: application/json'
+```
+
+## Response
+
+### Success Response
+
+Returns details of renewal operations:
+
+```json
+{
+  "message": "Watch renewal completed",
+  "renewed": 5,
+  "failed": 1,
+  "results": [
+    {
+      "email": "user@gmail.com",
+      "status": "renewed",
+      "expiration": "2024-03-11T10:30:00.000Z"
+    },
+    {
+      "email": "another@gmail.com",
+      "status": "failed",
+      "error": "Gmail watch API failed: Insufficient permissions"
+    }
+  ]
+}
+```
+
+<ResponseField name="message" type="string">
+  Summary message
+</ResponseField>
+
+<ResponseField name="renewed" type="number">
+  Number of watches successfully renewed
+</ResponseField>
+
+<ResponseField name="failed" type="number">
+  Number of watches that failed to renew
+</ResponseField>
+
+<ResponseField name="results" type="array">
+  Detailed results for each watch
+  
+  <ResponseField name="results[].email" type="string">
+    Gmail email address
+  </ResponseField>
+  
+  <ResponseField name="results[].status" type="string">
+    Renewal status: "renewed", "failed", "no_tokens", or "disconnected"
+  </ResponseField>
+  
+  <ResponseField name="results[].expiration" type="string" optional>
+    New expiration timestamp (ISO 8601) if renewed successfully
+  </ResponseField>
+  
+  <ResponseField name="results[].error" type="string" optional>
+    Error message if renewal failed
+  </ResponseField>
+</ResponseField>
+
+### No Watches to Renew
+
+When no watches are expiring soon:
+
+```json
+{
+  "message": "No watches to renew",
+  "renewed": 0
+}
+```
+
+## Error Responses
+
+### 401 Unauthorized
+
+Returned when internal authentication fails.
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+### 405 Method Not Allowed
+
+Returned when using any HTTP method other than POST.
+
+```json
+{
+  "error": "Method not allowed"
+}
+```
+
+### 500 Internal Server Error
+
+#### Watch Fetch Failed
+
+```json
+{
+  "error": "Failed to fetch expiring watches"
+}
+```
+
+#### General Error
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Processing Flow
+
+### 1. Expiration Check
+
+Queries `gmail_watches` table for watches expiring within **48 hours**:
+
+```sql
+SELECT * FROM gmail_watches
+WHERE is_active = true
+  AND expiration < (NOW() + INTERVAL '48 hours')
+```
+
+### 2. Token Resolution
+
+For each expiring watch:
+
+1. Creates system notification about expiring watch
+2. Retrieves active OAuth token for the user and Gmail email
+3. Ensures fresh access token via `ensureFreshAccessToken()`
+
+### 3. Watch Renewal
+
+Calls Gmail API to renew the watch:
+
+```
+POST https://www.googleapis.com/gmail/v1/users/me/watch
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "labelIds": ["INBOX"],
+  "topicName": "projects/{project-id}/topics/{topic-name}",
+  "labelFilterAction": "include"
+}
+```
+
+### 4. Database Update
+
+Updates `gmail_watches` table with new watch metadata:
+
+```typescript
+{
+  watch_id: string,        // New history ID
+  expiration: string,      // New expiration timestamp (7 days from now)
+  history_id: string,      // Updated history ID
+  updated_at: string       // Current timestamp
+}
+```
+
+### 5. Error Handling
+
+#### Token Reconnection Required
+
+When `GmailReconnectRequiredError` is caught:
+
+1. Deletes the watch from `gmail_watches` table
+2. Creates system notification for user to reconnect
+3. Marks result as "disconnected"
+4. Continues processing other watches
+
+#### API Failures
+
+When Gmail API call fails:
+
+1. Logs error details
+2. Creates system notification for user
+3. Marks result as "failed"
+4. Continues processing other watches
+
+#### No Active Tokens
+
+When no OAuth token found:
+
+1. Creates system notification
+2. Marks result as "no_tokens"
+3. Continues processing other watches
+
+## Notifications
+
+### Watch Expiring (Normal Priority)
+
+Created when renewal process starts:
+
+```typescript
+{
+  typeKey: 'gmail_watch_expiring',
+  actionPath: '/settings',
+  iconKey: 'mail',
+  i18nParams: { email: string },
+  metadata: {
+    gmailEmail: string,
+    expiration: string
+  },
+  dedupeKey: `watch-expiring-${userId}-${gmailEmail}`,
+  dedupeWindowMinutes: 360,
+  importance: 'normal'
+}
+```
+
+### Watch Renewal Failed (High Priority)
+
+Created when renewal fails:
+
+```typescript
+{
+  typeKey: 'gmail_watch_renew_failed',
+  actionPath: '/settings',
+  iconKey: 'mail',
+  i18nParams: { email: string },
+  metadata: {
+    gmailEmail: string,
+    reason: string
+  },
+  dedupeKey: `watch-renew-failed-${userId}-${gmailEmail}`,
+  dedupeWindowMinutes: 180,
+  importance: 'high'
+}
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key for database access
+
+### Expiration Window
+
+Renews watches that expire within **48 hours** (2 days) to provide buffer time for retries.
+
+### Watch Expiration
+
+Gmail watches expire **7 days** after creation. The API returns expiration as Unix timestamp in milliseconds:
+
+```typescript
+const watchExpiration = new Date(parseInt(watchData.expiration)).toISOString()
+```
+
+### Database Operations
+
+#### Fetch Expiring Watches
+
+```typescript
+const { data: expiringWatches } = await supabase
+  .from('gmail_watches')
+  .select('*')
+  .eq('is_active', true)
+  .lt('expiration', fortyEightHoursFromNow)
+```
+
+#### Update Watch
+
+```typescript
+await supabase
+  .from('gmail_watches')
+  .update({
+    watch_id: watchData.historyId,
+    expiration: watchExpiration,
+    history_id: watchData.historyId,
+    updated_at: new Date().toISOString()
+  })
+  .eq('id', watch.id)
+```
+
+#### Delete Watch (on reconnection required)
+
+```typescript
+await supabase
+  .from('gmail_watches')
+  .delete()
+  .eq('user_id', watch.user_id)
+  .eq('gmail_email', watch.gmail_email)
+```
+
+### Error Recovery
+
+Gracefully handles errors without failing the entire batch:
+
+- Continues processing remaining watches even if some fail
+- Creates user notifications for failures
+- Returns detailed results for monitoring
+
+## Deployment
+
+### Cron Schedule
+
+Recommended schedule: **Daily**
+
+Example using Supabase Edge Functions Cron:
+
+```sql
+-- Using pg_cron extension
+SELECT cron.schedule(
+  'renew-gmail-watches',
+  '0 2 * * *',  -- 2 AM daily
+  $$
+  SELECT
+    net.http_post(
+      url := 'https://your-project.supabase.co/functions/v1/renew-watches',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', 'Bearer ' || current_setting('app.internal_service_token')
+      )
+    );
+  $$
+);
+```
+
+Alternatively, use external cron services like GitHub Actions or cron-job.org.
+
+### Monitoring
+
+Monitor the following:
+
+1. **Renewal success rate** - Track `renewed / (renewed + failed)`
+2. **Failed watches** - Alert on `failed > 0`
+3. **Function execution** - Ensure daily execution
+4. **Token disconnections** - Track "disconnected" status results
+
+### Retry Logic
+
+Since watches expire in 7 days and renewal starts at 48 hours before expiration, there are multiple chances for retry:
+
+- Day 5: First renewal attempt (48 hours before expiration)
+- Day 6: Second renewal attempt (24 hours before expiration)
+- Day 7: Final renewal attempt (on expiration day)
+
+## Best Practices
+
+### Scheduling
+
+- Run daily to catch watches expiring within 48 hours
+- Run at low-traffic times (e.g., 2 AM) to reduce load
+- Use multiple retries with exponential backoff for API failures
+
+### Monitoring
+
+- Set up alerts for high failure rates
+- Log detailed error messages for debugging
+- Track renewal success metrics
+- Monitor notification delivery to users
+
+### Security
+
+- Use internal authentication tokens
+- Restrict endpoint to internal network or specific IPs
+- Rotate internal service tokens regularly
+- Use service role key for database access (not anon key)
+
+### User Communication
+
+- Notify users when watches expire and cannot be renewed
+- Provide clear instructions for reconnecting Gmail
+- Use appropriate notification priority levels
+
+## Related Functions
+
+- [auth-callback](/api/edge-functions/auth-callback) - Initial watch setup during OAuth
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Processes notifications from watches

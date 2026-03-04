@@ -1,0 +1,315 @@
+---
+title: 'gmail-webhook'
+description: 'Processes real-time Gmail push notifications and extracts transactions'
+---
+
+## Overview
+
+Processes push notifications from Google Cloud Pub/Sub when new emails arrive in Gmail. Uses the Gmail History API to fetch new messages and AI-powered extraction to identify and store financial transactions.
+
+## Endpoint
+
+```
+POST /functions/v1/gmail-webhook
+```
+
+## Authentication
+
+This endpoint is called by Google Cloud Pub/Sub. Authentication is performed via the `Authorization` header with a Bearer token (OIDC token from Pub/Sub).
+
+<Warning>
+OIDC token verification is not fully enforced in the current implementation. Consider implementing full token verification for production use.
+</Warning>
+
+## Request
+
+### Headers
+
+<ParamField header="Authorization" type="string">
+  Bearer token from Google Cloud Pub/Sub (OIDC token)
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`
+</ParamField>
+
+### Request Body
+
+Pub/Sub message wrapper containing base64-encoded Gmail notification:
+
+<ParamField body="message" type="object" required>
+  Pub/Sub message object
+  <ParamField body="message.data" type="string" required>
+    Base64-encoded JSON containing Gmail notification data
+  </ParamField>
+</ParamField>
+
+### Decoded Message Data
+
+The base64-decoded `message.data` contains:
+
+```json
+{
+  "emailAddress": "user@gmail.com",
+  "historyId": "12345"
+}
+```
+
+### Example Request
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/gmail-webhook' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer ya29.c.b0Aaekm1K...' \
+  --data '{
+    "message": {
+      "data": "eyJlbWFpbEFkZHJlc3MiOiJ0ZXN0QGV4YW1wbGUuY29tIiwiaGlzdG9yeUlkIjoxMjM0NX0="
+    }
+  }'
+```
+
+## Response
+
+Always returns `200 OK` to acknowledge receipt to Pub/Sub, even if processing fails internally.
+
+### Success Response
+
+```
+OK
+```
+
+### Status Codes
+
+<ResponseField name="200" type="string">
+  Successfully processed notification (or gracefully handled error)
+</ResponseField>
+
+<ResponseField name="400" type="string">
+  Invalid payload structure (missing required fields)
+</ResponseField>
+
+<ResponseField name="405" type="string">
+  Method not allowed (only POST accepted)
+</ResponseField>
+
+<ResponseField name="500" type="string">
+  Internal server error (still returns OK for Pub/Sub acknowledgment)
+</ResponseField>
+
+## Processing Flow
+
+### 1. Notification Validation
+
+- Decodes base64 message data
+- Extracts `emailAddress` and `historyId`
+- Checks for duplicate processing using in-memory set
+
+### 2. Token Resolution
+
+- Queries `user_oauth_tokens` table for all active tokens matching the Gmail address
+- Validates each token by ensuring fresh access tokens
+- Filters out tokens that require reconnection
+
+### 3. History API Query
+
+Fetches new messages using Gmail History API:
+
+```
+GET https://www.googleapis.com/gmail/v1/users/me/history
+  ?startHistoryId={last_processed_history_id}
+  &historyTypes=messageAdded
+  &labelId=INBOX
+```
+
+This returns only new messages since the last processed history ID.
+
+### 4. Message Filtering
+
+- Filters for messages with `INBOX` label
+- Excludes messages in `SPAM` or `TRASH`
+- Processes only the latest new message
+
+### 5. Message Retrieval
+
+Fetches full message details:
+
+```
+GET https://www.googleapis.com/gmail/v1/users/me/messages/{messageId}?format=full
+```
+
+### 6. Content Extraction
+
+Extracts from message payload:
+
+- **Subject** - From `Subject` header
+- **From** - Sender email address from `From` header
+- **Date** - Timestamp from `Date` header
+- **Body** - Plain text or HTML body (stripped of tags)
+- **Attachments** - Images (JPEG, PNG) and PDF documents
+
+### 7. AI Transaction Analysis
+
+Calls `extractTransactionFromEmail()` with:
+
+- Email body text
+- User's full name (for personalized analysis)
+- Image attachments (receipts, invoices)
+- PDF text content (extracted documents)
+
+### 8. Transaction Storage
+
+If AI detects a transaction, stores in `transactions` table:
+
+```typescript
+{
+  user_id: string,
+  user_oauth_token_id: string,
+  source_email: string,           // Sender email
+  source_message_id: string,      // Gmail message ID
+  date: string,                   // ISO timestamp
+  amount: number,                 // Transaction amount
+  currency: string,               // Currency code (USD, EUR, etc.)
+  transaction_type: string,       // "expense" or "income"
+  transaction_description: string,
+  transaction_date: string,       // YYYY-MM-DD
+  merchant: string,               // Merchant name
+  category: string                // Transaction category
+}
+```
+
+### 9. Duplicate Handling
+
+If transaction already exists (duplicate `source_message_id`), logs and continues without error.
+
+### 10. Discarded Emails
+
+If no transaction detected, stores in `discarded_emails` table:
+
+```typescript
+{
+  user_oauth_token_id: string,
+  message_id: string,
+  reason: string  // AI reasoning for rejection
+}
+```
+
+### 11. Fallback Processing
+
+If AI processing fails, uses keyword-based detection:
+
+**Keywords**: purchase, payment, charge, debit, credit, invoice, receipt, $, €, £
+
+If keywords found, creates a placeholder transaction with:
+- Amount: 0
+- Currency: USD
+- Type: expense
+- Description: Email subject
+- Category: uncategorized
+
+### 12. History ID Update
+
+Updates `gmail_watches` table with the new history ID for the next notification.
+
+## Multi-User Support
+
+The webhook processes notifications for **all users** who have connected the same Gmail account:
+
+1. Finds all active tokens for the Gmail address
+2. Validates each token independently
+3. Creates separate transaction records for each user
+4. Handles token failures gracefully (disconnects invalid tokens)
+
+## Error Handling
+
+### Token Reconnection Required
+
+When a token cannot be refreshed:
+
+1. Deactivates the token in `user_oauth_tokens`
+2. Creates system notification for the user
+3. Continues processing for other valid tokens
+4. Returns 200 OK to Pub/Sub
+
+### Gmail API Errors
+
+When Gmail API calls fail:
+
+1. Logs error details
+2. Creates system notification with error details
+3. Returns 200 OK to Pub/Sub (to prevent retries)
+
+### AI Processing Errors
+
+When AI extraction fails:
+
+1. Falls back to keyword-based detection
+2. Creates transaction if keywords found
+3. Otherwise, discards email with reason
+
+## Notifications Created
+
+System notifications are created for:
+
+- `gmail_sync_error` - When Gmail API calls fail
+- (Notifications are sent with deduplication to avoid spam)
+
+### Notification Parameters
+
+```typescript
+{
+  typeKey: 'gmail_sync_error',
+  userId: string,
+  actionPath: '/settings',
+  iconKey: 'alert',
+  i18nParams: {
+    email: string,
+    reason: string
+  },
+  metadata: {
+    gmailEmail: string,
+    stage: string,  // 'history_fetch' or 'message_fetch'
+    status: number,
+    messageId?: string
+  },
+  dedupeKey: string,
+  dedupeWindowMinutes: 180
+}
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key for database access
+
+### In-Memory Deduplication
+
+Uses a `Set<string>` to track processed `{emailAddress}-{historyId}` pairs and avoid duplicate processing within the function instance lifetime.
+
+<Note>
+Deduplication is in-memory and resets when the function cold-starts. Database uniqueness constraints provide persistent deduplication.
+</Note>
+
+### Attachment Processing
+
+Supports:
+
+- **Images**: JPEG, PNG (passed to AI vision for receipt/invoice analysis)
+- **PDFs**: Text extraction via `unpdf` library (text passed to AI)
+
+### AI Analysis
+
+Uses Langfuse for observability. Flushes events before returning response:
+
+```typescript
+const { flushLangfuse } = await import("../_shared/lib/langfuse.ts")
+await flushLangfuse()
+```
+
+## Related Functions
+
+- [auth-callback](/api/edge-functions/auth-callback) - Sets up Gmail watches that trigger this webhook
+- [renew-watches](/api/edge-functions/renew-watches) - Renews watches to keep notifications flowing
+- [process-document](/api/edge-functions/process-document) - Similar AI processing for manually uploaded files

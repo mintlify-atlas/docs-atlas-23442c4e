@@ -1,0 +1,188 @@
+---
+title: 'Transaction Management'
+description: 'View, filter, and manage your financial transactions'
+icon: 'receipt'
+---
+
+## Overview
+
+The Transactions page is your central hub for viewing and managing all financial transactions. Money Tracker automatically extracts transactions from your Gmail inbox and allows you to add transactions manually or by uploading receipts.
+
+## Viewing Transactions
+
+### Transaction List
+
+Transactions are displayed in a two-panel layout:
+- **Left panel**: Scrollable list of all transactions
+- **Right panel**: Detailed view of the selected transaction
+- **Mobile**: Full-screen overlay for transaction details
+
+Each transaction card shows:
+- Merchant name
+- Transaction amount and currency
+- Transaction date
+- Category badge
+- Transaction type (income/expense)
+- Source email (if auto-extracted)
+
+### Pagination
+
+Transactions load in pages of 50 items. Scroll to the bottom of the list to automatically load more transactions.
+
+## Adding Transactions
+
+You have three ways to add transactions:
+
+### 1. Manual Entry
+
+<Steps>
+  <Step title="Click the + button">
+    Click the floating action button in the bottom-right corner and select "Add Manually"
+  </Step>
+  <Step title="Fill in transaction details">
+    - **Type**: Income or Expense
+    - **Merchant**: Name of the merchant or sender
+    - **Date**: Transaction date
+    - **Amount**: Transaction amount (numeric)
+    - **Currency**: Select from USD, EUR, GBP, ARS, MXN, and more
+    - **Category**: Choose from 11 categories (food, transport, housing, etc.)
+  </Step>
+  <Step title="Save">
+    Click "Create" to save the transaction
+  </Step>
+</Steps>
+
+### 2. Upload Receipt or Invoice
+
+<Note>
+AI-powered document analysis extracts transaction details automatically
+</Note>
+
+<Steps>
+  <Step title="Click the + button">
+    Click the floating action button and select "Upload Document"
+  </Step>
+  <Step title="Upload file">
+    Drag and drop or select:
+    - **Images**: JPG, PNG, GIF, BMP, TIFF, WebP (max 3MB)
+    - **PDFs**: Invoices and receipts (max 5MB)
+  </Step>
+  <Step title="AI Processing">
+    The AI analyzes the document and automatically:
+    - Extracts merchant name
+    - Identifies transaction amount and currency
+    - Detects transaction date
+    - Categorizes the transaction
+    - Saves to your transaction list
+  </Step>
+</Steps>
+
+### 3. Automatic Gmail Extraction
+
+When you connect your Gmail account, Money Tracker automatically:
+- Monitors your inbox for transaction-related emails
+- Extracts transaction details using AI
+- Creates transactions without manual input
+
+See [Gmail Integration](/features/gmail-integration) for setup details.
+
+## Filtering Transactions
+
+Use the filter bar to narrow down transactions:
+
+<AccordionGroup>
+  <Accordion title="By Search Term">
+    Search for merchant names or transaction descriptions
+  </Accordion>
+  <Accordion title="By Currency">
+    Filter transactions by currency (USD, EUR, ARS, etc.)
+  </Accordion>
+  <Accordion title="By Email Account">
+    Show only transactions from a specific Gmail account
+  </Accordion>
+  <Accordion title="By Category">
+    Filter by category:
+    - Salary
+    - Entertainment
+    - Investment
+    - Food
+    - Transport
+    - Services
+    - Health
+    - Education
+    - Housing
+    - Clothing
+    - Other
+  </Accordion>
+  <Accordion title="By Transaction Type">
+    Show only income or only expenses
+  </Accordion>
+  <Accordion title="By Date Range">
+    Set start and end dates to view transactions within a specific period
+  </Accordion>
+</AccordionGroup>
+
+## Managing Transactions
+
+### Editing a Transaction
+
+1. Click on a transaction to view details
+2. Click the "Edit" button
+3. Modify any field (type, merchant, amount, currency, category, date)
+4. Click "Save" to apply changes
+
+### Deleting a Transaction
+
+<Warning>
+Deleting a transaction is permanent and cannot be undone
+</Warning>
+
+1. Click on a transaction to view details
+2. Click the "Delete" button
+3. Confirm the deletion
+
+**Important**: When you delete a transaction that was auto-extracted from Gmail, it's added to a discard list to prevent it from being re-imported during future email syncs.
+
+## Transaction Details
+
+The detail panel shows comprehensive information:
+
+- **Merchant**: Company or person name
+- **Amount**: Formatted with currency symbol
+- **Currency**: 3-letter ISO code (USD, EUR, etc.)
+- **Type**: Income or Expense badge
+- **Category**: Color-coded category badge
+- **Transaction Date**: When the transaction occurred
+- **Description**: Additional transaction details (for auto-extracted transactions)
+- **Source Email**: Email address where the transaction was found (if applicable)
+- **Created At**: When the transaction was added to Money Tracker
+
+## Multi-Currency Support
+
+Money Tracker supports multiple currencies:
+
+- USD (US Dollar)
+- EUR (Euro)
+- GBP (British Pound)
+- ARS (Argentine Peso)
+- MXN (Mexican Peso)
+- BRL (Brazilian Real)
+- CLP (Chilean Peso)
+- COP (Colombian Peso)
+
+Each transaction stores its original currency. See [Multi-Currency](/features/multi-currency) for currency conversion and analytics.
+
+## No Gmail Account Warning
+
+<Tip>
+Connect your Gmail to enable automatic transaction extraction
+</Tip>
+
+If you haven't connected a Gmail account, you'll see a banner at the top of the Transactions page prompting you to connect one. Click "Connect Account" to go to Settings.
+
+## Related Features
+
+- [Gmail Integration](/features/gmail-integration) - Automatic transaction extraction
+- [AI Extraction](/features/ai-extraction) - How AI processes your emails
+- [Multi-Currency](/features/multi-currency) - Currency handling and conversion
+- [Subscriptions](/features/subscriptions) - Track recurring transactions

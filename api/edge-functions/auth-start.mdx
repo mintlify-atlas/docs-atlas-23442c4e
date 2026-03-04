@@ -1,0 +1,136 @@
+---
+title: 'auth-start'
+description: 'Initiates the Google OAuth flow for Gmail integration'
+---
+
+## Overview
+
+Initiates the Google OAuth 2.0 authentication flow to grant Money Tracker access to read Gmail messages. This is the first step in connecting a Gmail account.
+
+## Endpoint
+
+```
+GET /functions/v1/auth-start
+```
+
+## Authentication
+
+Requires a valid Supabase user token passed as a query parameter.
+
+## Request
+
+### Query Parameters
+
+<ParamField query="token" type="string" required>
+  Supabase JWT authentication token for the authenticated user. This token is passed as state to the OAuth flow to maintain session continuity.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -i --location --request GET \
+  'https://your-project.supabase.co/functions/v1/auth-start?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+## Response
+
+This endpoint performs a 302 redirect to Google's OAuth consent page.
+
+### Redirect Parameters
+
+The redirect URL includes the following OAuth 2.0 parameters:
+
+<ResponseField name="client_id" type="string">
+  Google OAuth client ID configured in environment variables
+</ResponseField>
+
+<ResponseField name="redirect_uri" type="string">
+  Callback URL that Google will redirect to after authorization (points to `auth-callback` function)
+</ResponseField>
+
+<ResponseField name="response_type" type="string">
+  Set to `code` for authorization code flow
+</ResponseField>
+
+<ResponseField name="scope" type="string">
+  Requested OAuth scopes:
+  - `https://www.googleapis.com/auth/gmail.readonly` - Read Gmail messages
+  - `https://www.googleapis.com/auth/userinfo.email` - Access user's email address
+</ResponseField>
+
+<ResponseField name="state" type="string">
+  Contains the Supabase token passed in the request to maintain session state
+</ResponseField>
+
+<ResponseField name="access_type" type="string">
+  Set to `offline` to request a refresh token
+</ResponseField>
+
+<ResponseField name="prompt" type="string">
+  Set to `consent` to force the consent screen and ensure a refresh token is issued
+</ResponseField>
+
+## Error Responses
+
+### 401 Unauthorized
+
+Returned when the authentication token is missing.
+
+```json
+{
+  "error": "Missing authentication token"
+}
+```
+
+### 405 Method Not Allowed
+
+Returned when using any HTTP method other than GET.
+
+```json
+{
+  "error": "Method not allowed"
+}
+```
+
+### 500 Internal Server Error
+
+Returned when OAuth configuration is missing or an internal error occurs.
+
+```json
+{
+  "error": "OAuth configuration missing"
+}
+```
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `OAUTH_REDIRECT_URI` - OAuth callback URL (defaults to local development URL)
+
+### OAuth Flow
+
+1. Validates user authentication token
+2. Retrieves Google OAuth configuration from environment
+3. Constructs authorization URL with required scopes
+4. Redirects user to Google consent screen
+5. User grants permissions
+6. Google redirects to `auth-callback` with authorization code
+
+### Security Notes
+
+- The Supabase token is passed as the OAuth `state` parameter to prevent CSRF attacks
+- Access type is set to `offline` to obtain a refresh token for long-term access
+- Prompt is set to `consent` to ensure refresh token issuance
+
+## Related Functions
+
+- [auth-callback](/api/edge-functions/auth-callback) - Handles the OAuth callback and stores tokens
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Processes Gmail notifications after authentication

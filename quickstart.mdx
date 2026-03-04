@@ -1,80 +1,324 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get Money Tracker running locally in under 5 minutes"
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+Before starting, ensure you have:
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+- **Docker and Docker Compose** installed on your machine
+- A **Google Cloud project** with Gmail API enabled (for Gmail integration)
+- An **xAI API key** (for transaction extraction)
+- A **Supabase account** (optional for production; local stack works out of the box)
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  No local installation of Bun or Supabase CLI is required. Everything runs inside Docker containers.
 </Note>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/yourusername/money-tracker.git
+    cd money-tracker
+    ```
+  </Step>
+
+  <Step title="Create environment files">
+    Copy the example environment files:
+
+    ```bash
+    cp packages/frontend/.env.example packages/frontend/.env
+    cp supabase/functions/.env.example supabase/functions/.env
+    ```
+  </Step>
+
+  <Step title="Configure frontend environment">
+    Edit `packages/frontend/.env`:
+
+    ```bash
+    # Supabase Configuration
+    SUPABASE_URL=http://127.0.0.1:54321
+    SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+
+    # Frontend server
+    PORT=3000
+
+    # Optional (used by E2E tests)
+    XAI_API_KEY=
+    ```
+
+    <Note>
+      The `SUPABASE_ANON_KEY` above is the default key for local Supabase. Don't change it for local development.
+    </Note>
+  </Step>
+
+  <Step title="Configure Edge Functions environment">
+    Edit `supabase/functions/.env` with your actual credentials:
+
+    ```bash
+    # Supabase Configuration
+    SUPABASE_URL=http://host.docker.internal:54321
+    SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+    SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+    FRONTEND_URL=http://localhost:3000
+
+    # Google OAuth Configuration
+    GOOGLE_CLIENT_ID=your_google_client_id
+    GOOGLE_CLIENT_SECRET=your_google_client_secret
+    OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+    GOOGLE_PROJECT_ID=your_google_project_id
+    PUBSUB_TOPIC=gmail-notifications
+
+    # AI Configuration
+    XAI_API_KEY=your_xai_api_key_here
+
+    # Langfuse Configuration (optional for development)
+    LANGFUSE_SECRET_KEY=
+    LANGFUSE_PUBLIC_KEY=
+    LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
+    # CORS Configuration
+    CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    CORS_ALLOW_CREDENTIALS=false
+
+    # Internal functions secret
+    INTERNAL_FUNCTIONS_SECRET=local-dev-internal-secret
+
+    # Environment
+    ENVIRONMENT=development
+    ```
+
+    <Warning>
+      You must replace `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_PROJECT_ID`, and `XAI_API_KEY` with your actual credentials.
+    </Warning>
+  </Step>
+
+  <Step title="Start the application">
+    Run the application using Docker Compose:
+
+    ```bash
+    PROJECT_ROOT=$(pwd) docker compose up --build
+    ```
+
+    This starts:
+    - **Frontend** with hot reload at `http://localhost:3000`
+    - **Supabase local stack** (PostgreSQL, Auth, Edge Functions, Studio)
+
+    The first startup may take a few minutes as Docker downloads images and builds containers.
+  </Step>
+
+  <Step title="Access the application">
+    Once running, open your browser to:
+
+    - **App**: http://localhost:3000
+    - **Supabase Studio**: http://127.0.0.1:54323
+
+    <Note>
+      The local database is automatically seeded with a test account:
+      - Email: `user@test.com`
+      - Password: `password123`
+      - 132 demo transactions included
+    </Note>
+  </Step>
+</Steps>
+
+## Connecting Your Gmail Account
+
+After logging in, connect your Gmail to start tracking real transactions:
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Click on the **Settings** icon in the sidebar or press `Cmd/Ctrl + K` and search for "Settings".
+  </Step>
+
+  <Step title="Connect Gmail Account">
+    Click the **"Connect Gmail Account"** button. This will redirect you to Google's OAuth consent screen.
+  </Step>
+
+  <Step title="Authorize access">
+    Grant Money Tracker read-only access to your Gmail. The app will never modify or delete your emails.
+  </Step>
+
+  <Step title="Wait for initial import">
+    After authorization, Money Tracker automatically starts importing the last 3 months of emails. This process runs in the background and may take a few minutes depending on your email volume.
+
+    You'll see a progress indicator showing how many emails have been processed.
+  </Step>
+
+  <Step title="Check your transactions">
+    Navigate to the **Transactions** page to see automatically extracted transactions from your emails.
+  </Step>
+</Steps>
+
+<Note>
+  The initial import processes 30 emails at a time with 10 concurrent AI extractions per batch. Processed emails are tracked in the database, so you can safely stop and resume the import.
+</Note>
+
+## Processing Your First Transaction
+
+To test the AI extraction manually:
+
+<Steps>
+  <Step title="Upload a receipt">
+    On the **Transactions** page, click the **"Upload Document"** button.
+  </Step>
+
+  <Step title="Select a file">
+    Choose a receipt image (JPG, PNG) or PDF invoice from your computer.
+  </Step>
+
+  <Step title="Wait for AI extraction">
+    The document is sent to xAI Grok for analysis. Within a few seconds, the transaction details are extracted and displayed.
+  </Step>
+
+  <Step title="Review and save">
+    Check the extracted amount, merchant, category, and date. Edit if needed, then save the transaction.
+  </Step>
+</Steps>
+
+## Database Commands
+
+### Reset the database
+
+Apply all migrations and reseed the database:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase db reset --local"
+```
+
+Or use the npm script:
+
+```bash
+bun run docker:db:reset
+```
+
+### Apply pending migrations
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase migration up --include-all --local"
+```
+
+Or:
+
+```bash
+bun run docker:db:migration:up
+```
+
+### Generate TypeScript types
+
+Generate types from the database schema:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose run --rm supabase-cli sh -lc "supabase start && supabase gen types typescript --local > packages/frontend/src/types/database.types.ts"
+```
+
+Or:
+
+```bash
+bun run docker:db:types
+```
+
+## Seed Data
+
+The local database includes test data for development:
+
+| File | Description |
+|------|-------------|
+| `001_auth_test_user.sql` | Creates test account `user@test.com` / `password123` |
+| `002_transactions_test_user.sql` | Inserts 132 demo transactions |
+| `005_internal_functions_secret_local.sql` | Sets up local Vault secret |
+
+Seeds run automatically when you reset the database.
+
+## Stopping the Application
+
+To stop all services:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose down
+```
+
+Or use the npm script:
+
+```bash
+bun run docker:down
+```
+
+## Troubleshooting
+
+### Frontend fails to load
+
+- Verify `packages/frontend/.env` exists and contains valid `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+- Check frontend logs: `docker compose logs -f frontend`
+- Ensure Supabase is running: `docker compose ps`
+
+### Gmail OAuth fails
+
+- Verify your Google Cloud project has the Gmail API enabled
+- Check that `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_REDIRECT_URI` match your Google Cloud Console settings
+- Ensure the redirect URI is added to the authorized redirect URIs in Google Cloud Console
+
+### AI extraction fails
+
+- Verify your `XAI_API_KEY` is valid and has credits
+- Check Edge Function logs: `docker compose logs -f supabase-cli`
+- Test the API key with a simple curl request to xAI
+
+### Docker issues on macOS/Linux
+
+- Always include `PROJECT_ROOT=$(pwd)` when running Docker Compose commands
+- This ensures host and container paths match for nested Docker mounts
+- Use service names (e.g., `frontend`, `supabase-cli`) with `docker compose exec`, not container names
+
+### Database connection errors
+
+- Ensure Supabase services are healthy: `docker compose ps`
+- Check if port 54321 is available: `lsof -i :54321`
+- Restart the Supabase stack: `docker compose restart supabase-cli`
+
+## Advanced Usage
+
+### Access Supabase CLI container
+
+Enter the container for manual commands:
+
+```bash
+PROJECT_ROOT=$(pwd) docker compose exec supabase-cli sh
+```
+
+Inside, you have full access to the Supabase CLI:
+
+```bash
+supabase status
+supabase db diff
+supabase functions deploy
+```
+
+### Stream logs
+
+Watch real-time logs:
+
+```bash
+# Frontend logs
+docker compose logs -f frontend
+
+# Supabase logs (Edge Functions)
+docker compose logs -f supabase-cli
+
+# All logs
+docker compose logs -f
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand how Money Tracker works
+  </Card>
+  <Card title="Core Features" icon="sparkles" href="/features/transactions">
+    Explore all features of Money Tracker
+  </Card>
+</CardGroup>

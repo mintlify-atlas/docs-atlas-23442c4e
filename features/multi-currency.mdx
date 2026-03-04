@@ -1,0 +1,240 @@
+---
+title: 'Multi-Currency Support'
+description: 'Handle transactions in multiple currencies with ease'
+icon: 'coins'
+---
+
+## Overview
+
+Money Tracker provides native support for multiple currencies, allowing you to track transactions across different countries and currencies without manual conversion. Each transaction stores its original currency, and you can filter and analyze by specific currencies.
+
+## Supported Currencies
+
+Money Tracker supports these currencies out of the box:
+
+<CardGroup cols={3}>
+  <Card title="USD" icon="dollar-sign">
+    United States Dollar
+  </Card>
+  <Card title="EUR" icon="euro-sign">
+    Euro
+  </Card>
+  <Card title="GBP" icon="sterling-sign">
+    British Pound
+  </Card>
+  <Card title="ARS" icon="peso-sign">
+    Argentine Peso
+  </Card>
+  <Card title="MXN" icon="peso-sign">
+    Mexican Peso
+  </Card>
+  <Card title="BRL" icon="brazilian-real-sign">
+    Brazilian Real
+  </Card>
+  <Card title="CLP" icon="peso-sign">
+    Chilean Peso
+  </Card>
+  <Card title="COP" icon="peso-sign">
+    Colombian Peso
+  </Card>
+</CardGroup>
+
+## How Currencies Work
+
+### Transaction-Level Currency
+
+Each transaction stores:
+- **Original amount**: The exact value in the transaction
+- **Currency code**: 3-letter ISO 4217 code (USD, EUR, etc.)
+
+This approach preserves the integrity of your financial data without lossy conversions.
+
+### Example
+
+If you have transactions in multiple currencies:
+- $100 USD lunch in New York
+- €80 EUR dinner in Paris
+- $500 ARS groceries in Buenos Aires
+
+Each transaction retains its original currency and amount.
+
+## Currency Detection
+
+When transactions are automatically extracted from emails, the AI:
+
+1. **Looks for explicit currency codes**: USD, EUR, ARS, etc.
+2. **Identifies currency symbols**: $, €, £, and converts to ISO codes
+3. **Uses context clues**: Email language, sender domain, country-specific formatting
+
+<Note>
+Ambiguous symbols like "$" are resolved using email context (e.g., Spanish email → ARS, English email from US sender → USD)
+</Note>
+
+## Working with Multiple Currencies
+
+### Filtering by Currency
+
+On the Transactions page:
+1. Click the **Currency** filter dropdown
+2. Select a specific currency (or "All" to see everything)
+3. The transaction list updates to show only that currency
+
+### Manual Currency Selection
+
+When adding transactions manually:
+1. Select currency from the dropdown (shows symbol + code)
+2. Enter amount in that currency
+3. Transaction is saved with selected currency
+
+### Document Upload
+
+When uploading receipts or invoices:
+- The AI automatically detects the currency from the document
+- No manual selection needed
+
+## Currency Display
+
+### Transaction List
+
+Transactions display with:
+- **Currency symbol**: $ € £ etc.
+- **Amount**: Formatted with 2 decimal places
+- **Currency code**: 3-letter code (USD, EUR)
+
+Example: `$ 49.99 USD`
+
+### Transaction Detail
+
+The detail panel shows:
+- Full currency name (United States Dollar)
+- Currency code (USD)
+- Formatted amount with symbol
+
+## Currency Formatting
+
+Money Tracker applies locale-appropriate formatting:
+
+| Currency | Symbol | Format Example |
+|----------|--------|----------------|
+| USD | $ | $ 1,234.56 USD |
+| EUR | € | € 1.234,56 EUR |
+| GBP | £ | £ 1,234.56 GBP |
+| ARS | $ | $ 1.234,56 ARS |
+| MXN | $ | $ 1,234.56 MXN |
+| BRL | R$ | R$ 1.234,56 BRL |
+| CLP | $ | $ 1.234 CLP |
+| COP | $ | $ 1.234 COP |
+
+## Multi-Currency Analytics
+
+### Metrics Dashboard
+
+The Metrics page includes a **Currency Comparison** card that shows:
+- Transaction count by currency
+- Total amounts per currency
+- Percentage breakdown
+
+This helps you understand your spending patterns across currencies.
+
+### Subscriptions by Currency
+
+The Subscriptions page groups recurring transactions by currency, showing:
+- Average amount in original currency
+- Occurrences count
+- Next estimated payment date
+
+## Currency Conversion
+
+<Warning>
+Money Tracker does not currently perform automatic currency conversion
+</Warning>
+
+Transactions are stored and displayed in their original currencies. If you need aggregated totals across currencies, you'll need to:
+1. Export transaction data
+2. Apply exchange rates manually
+3. Calculate totals in your preferred base currency
+
+### Future Enhancement
+
+Automatic currency conversion with real-time exchange rates is planned for a future release.
+
+## Best Practices
+
+<Tip>
+Tips for managing multi-currency transactions
+</Tip>
+
+1. **Let the AI detect currency**: When possible, rely on automatic extraction rather than manual entry
+2. **Keep receipts**: Upload receipts for accurate currency documentation
+3. **Filter by currency**: Analyze spending patterns per currency separately
+4. **Use consistent accounts**: Connect Gmail accounts specific to each currency region
+5. **Review AI extractions**: Verify currency was correctly detected, especially for ambiguous symbols
+
+## Common Currency Scenarios
+
+### Travel Expenses
+
+If you travel and spend in different currencies:
+- Each transaction captures the local currency
+- Use date range filters to analyze spending during your trip
+- Filter by currency to see all expenses in that region
+
+### International Subscriptions
+
+For subscriptions billed in foreign currencies:
+- The AI detects recurring charges in the original currency
+- Subscription tracking works per-currency
+- No conversion confusion
+
+### Multiple Gmail Accounts
+
+If you have Gmail accounts in different countries:
+- Each account's transactions retain their local currency
+- Use email filters to see transactions by account/currency
+- Dashboard shows totals per currency
+
+## Currency Validation
+
+### On Manual Entry
+
+The app validates:
+- Currency must be selected from the dropdown (no free text)
+- Amount must be a positive number
+- Maximum 2 decimal places for most currencies
+- CLP and COP typically have no decimals (integer values)
+
+### On AI Extraction
+
+The AI ensures:
+- Currency is a valid 3-letter ISO code
+- If currency is ambiguous, defaults to USD or uses context
+- Invalid currencies are flagged for manual review
+
+## Troubleshooting
+
+### Wrong Currency Detected
+
+1. Edit the transaction
+2. Select the correct currency from the dropdown
+3. Verify the amount is correct for that currency
+4. Save changes
+
+### Missing Currency Symbol
+
+If a currency displays without a symbol:
+- The currency code (USD, EUR) is always shown
+- Symbol mapping may be missing for rare currencies
+- Functionality is not affected
+
+### Currency Filter Not Working
+
+If filtering by currency doesn't show expected results:
+- Check that transactions actually exist in that currency
+- Verify the currency code matches (e.g., USD vs. US$)
+- Clear all other filters to isolate the currency filter
+
+## Related Features
+
+- [Transactions](/features/transactions) - View and manage multi-currency transactions
+- [AI Extraction](/features/ai-extraction) - How currency is auto-detected
+- [Subscriptions](/features/subscriptions) - Track recurring payments per currency

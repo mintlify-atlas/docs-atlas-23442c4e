@@ -1,0 +1,232 @@
+---
+title: 'Gmail Integration'
+description: 'Connect your Gmail account to automatically extract transactions from emails'
+icon: 'envelope'
+---
+
+## Overview
+
+Gmail Integration is the core feature of Money Tracker. By connecting your Gmail account, the app automatically monitors your inbox for transaction-related emails and extracts financial information using AI.
+
+## How It Works
+
+<Steps>
+  <Step title="OAuth Connection">
+    You authorize Money Tracker to read your Gmail messages using secure Google OAuth 2.0
+  </Step>
+  <Step title="Watch Setup">
+    Money Tracker creates a Gmail Watch that sends real-time notifications when new emails arrive
+  </Step>
+  <Step title="Real-Time Processing">
+    When a new email arrives in your INBOX, Money Tracker:
+    - Receives a webhook notification from Google
+    - Fetches the email content
+    - Analyzes it with AI
+    - Extracts transaction details if found
+  </Step>
+  <Step title="Transaction Creation">
+    Valid transactions are automatically added to your transaction list
+  </Step>
+</Steps>
+
+## Connecting Your Gmail Account
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Click on "Settings" in the sidebar or from the dashboard
+  </Step>
+  <Step title="Connect Gmail">
+    Click the "Connect Gmail" button in the Email Notifications section
+  </Step>
+  <Step title="Google Authorization">
+    You'll be redirected to Google's authorization page:
+    - Sign in to your Google account
+    - Review the permissions Money Tracker is requesting
+    - Click "Allow" to grant access
+  </Step>
+  <Step title="Return to Money Tracker">
+    After authorization, you'll be redirected back to Money Tracker with a success message
+  </Step>
+  <Step title="Import Historical Emails (Optional)">
+    A modal will appear asking if you want to import past emails. You can:
+    - Import the last 7 days of emails
+    - Skip and only process new emails going forward
+  </Step>
+</Steps>
+
+## Managing Connected Accounts
+
+### Multiple Gmail Accounts
+
+You can connect multiple Gmail accounts to Money Tracker. Each account:
+- Has its own watch configuration
+- Processes emails independently
+- Can be managed separately
+
+To add another account, click "Add Another Account" in Settings.
+
+### Account Status
+
+Each connected account shows one of three statuses:
+
+<CardGroup cols={3}>
+  <Card title="Connected" icon="check-circle" color="#10b981">
+    Account is active and processing emails
+  </Card>
+  <Card title="Needs Reconnect" icon="exclamation-triangle" color="#f59e0b">
+    OAuth token expired or revoked - reconnection required
+  </Card>
+  <Card title="Disconnected" icon="circle-xmark" color="#ef4444">
+    Account was manually disconnected
+  </Card>
+</CardGroup>
+
+### Reconnecting an Account
+
+If an account shows "Needs Reconnect":
+
+1. Click the "Reconnect" button next to the account
+2. Complete the Google authorization flow again
+3. The account status will update to "Connected"
+
+<Note>
+Accounts need reconnection if:
+- The OAuth token expired
+- You revoked access in your Google account settings
+- The refresh token was invalidated by Google
+</Note>
+
+### Disconnecting an Account
+
+<Warning>
+Disconnecting stops automatic email processing for that account
+</Warning>
+
+1. Click the "Disconnect" (X) button next to the account
+2. Confirm the disconnection
+3. The account will be marked as disconnected
+
+**What happens when you disconnect:**
+- Gmail Watch is stopped
+- OAuth tokens are invalidated
+- Historical transactions remain in your account
+- The account can be reconnected later
+
+## Email Import (Seed)
+
+The Email Import feature allows you to process historical emails to extract past transactions.
+
+### Starting an Import
+
+<Steps>
+  <Step title="Open Import Modal">
+    In Settings, click "Import Emails" next to a connected account
+  </Step>
+  <Step title="Select Date Range">
+    Choose how far back to import:
+    - Last 7 days (recommended for first import)
+    - Custom date range
+  </Step>
+  <Step title="Start Processing">
+    Click "Start Import" - processing happens in the background
+  </Step>
+  <Step title="Monitor Progress">
+    The Dashboard shows real-time progress:
+    - Total emails fetched
+    - Emails processed by AI
+    - Transactions found
+    - Emails skipped
+  </Step>
+</Steps>
+
+### Import Status
+
+Imports can have these statuses:
+
+- **Processing**: Currently fetching and analyzing emails
+- **Completed**: All emails processed successfully
+- **Failed**: Import encountered an error - you can retry
+
+<Tip>
+Imports run in the background using Edge Functions, so you can close the page and check back later
+</Tip>
+
+### Import Limits
+
+- Maximum 500 emails per import session
+- Imports only INBOX emails (not SPAM or TRASH)
+- Duplicate transactions are automatically prevented
+
+## Gmail Watch Management
+
+Gmail Watches are Google's mechanism for real-time email notifications.
+
+### Watch Lifecycle
+
+- **Creation**: Automatically created when you connect a Gmail account
+- **Expiration**: Watches expire after 7 days
+- **Renewal**: Money Tracker automatically renews watches before expiration
+
+### Watch Status Warnings
+
+You'll see warnings on the Dashboard if:
+- Watch will expire within 72 hours
+- Watch has already expired
+- Account is missing a watch
+
+<Note>
+If a watch expires, you'll temporarily stop receiving real-time notifications until it's renewed. Historical emails aren't lost and can be processed with Email Import.
+</Note>
+
+## Permissions and Privacy
+
+### What Access Does Money Tracker Need?
+
+Money Tracker requests these Google OAuth scopes:
+
+- `https://www.googleapis.com/auth/gmail.readonly` - Read email messages
+- `https://www.googleapis.com/auth/gmail.metadata` - Access email metadata (sender, subject, date)
+- `https://www.googleapis.com/auth/userinfo.email` - Identify your Gmail address
+
+### What Emails Are Processed?
+
+Money Tracker only processes:
+- Emails in your INBOX
+- Emails not marked as SPAM or in TRASH
+- Emails that arrive after you connect your account (unless you run Email Import)
+
+### Privacy Guarantee
+
+<Card title="Your Privacy Matters" icon="shield-check" color="#10b981">
+  - Emails are only analyzed for transaction data
+  - Email content is not stored permanently
+  - Only transaction metadata is saved (merchant, amount, date, etc.)
+  - OAuth tokens are encrypted at rest
+  - You can disconnect at any time
+</Card>
+
+## Troubleshooting
+
+### No Transactions Appearing
+
+1. **Check account status**: Ensure your account shows "Connected" in Settings
+2. **Verify watch**: Look for watch warnings on the Dashboard
+3. **Check email content**: The AI only extracts clear transaction information
+4. **Run Email Import**: Try importing recent emails manually
+
+### "Needs Reconnect" Status
+
+- Click "Reconnect" and complete the Google authorization
+- If it persists, disconnect and reconnect the account
+
+### Watch Expiration
+
+- Money Tracker automatically renews watches
+- If you see expiration warnings, refresh the page or wait for automatic renewal
+- As a last resort, disconnect and reconnect the account to create a new watch
+
+## Related Features
+
+- [AI Extraction](/features/ai-extraction) - How the AI processes emails
+- [Transactions](/features/transactions) - View extracted transactions
+- [Notifications](/features/notifications) - Get notified about sync issues

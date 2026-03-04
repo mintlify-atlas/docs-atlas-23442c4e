@@ -1,0 +1,367 @@
+---
+title: 'Subscription Tracking'
+description: 'Automatically detect and monitor recurring transactions and subscriptions'
+icon: 'repeat'
+---
+
+## Overview
+
+Money Tracker's Subscription Tracking feature uses AI-powered analysis to automatically identify recurring transactions in your transaction history. It detects patterns, calculates intervals, and predicts when your next payment is due.
+
+## How Subscription Detection Works
+
+The system analyzes your transaction history to find recurring patterns:
+
+<Steps>
+  <Step title="Pattern Analysis">
+    Money Tracker scans transactions for repeated charges from the same merchant
+  </Step>
+  <Step title="Frequency Calculation">
+    Calculates average interval between transactions (daily, weekly, monthly, yearly)
+  </Step>
+  <Step title="Confidence Scoring">
+    Assigns a confidence score (0-100%) based on:
+    - Consistency of intervals
+    - Amount stability
+    - Number of occurrences
+    - Source email consistency
+  </Step>
+  <Step title="Next Date Prediction">
+    Predicts the next payment date using historical intervals
+  </Step>
+</Steps>
+
+## Subscription Candidates
+
+Detected subscriptions are called "candidates" and must meet these criteria:
+
+- **Minimum 2 occurrences**: At least 2 transactions from the same merchant
+- **Minimum 65% confidence**: Confidence score ≥ 65%
+- **Same currency**: All transactions in the same currency
+
+These thresholds ensure only legitimate recurring charges are displayed.
+
+## Subscription Card Information
+
+Each subscription shows:
+
+<CardGroup cols={2}>
+  <Card title="Merchant Name" icon="store">
+    The merchant or service provider (e.g., Netflix, Spotify)
+  </Card>
+  <Card title="Confidence Score" icon="gauge-high">
+    Color-coded confidence badge:
+    - Green (75%+): High confidence
+    - Yellow (50-74%): Medium confidence
+    - Gray (under 50%): Low confidence (filtered out by default)
+  </Card>
+  <Card title="Status" icon="circle-dot">
+    Current subscription status:
+    - Active (green)
+    - Inactive (red)
+    - Unknown (gray)
+  </Card>
+  <Card title="Frequency" icon="repeat">
+    Detected billing cycle: daily, weekly, monthly, yearly, or unknown
+  </Card>
+  <Card title="Average Amount" icon="dollar-sign">
+    Average charge amount with currency
+  </Card>
+  <Card title="Occurrences" icon="hashtag">
+    Number of detected transactions
+  </Card>
+  <Card title="Last Date" icon="calendar">
+    Date of the most recent charge
+  </Card>
+  <Card title="Next Estimated Date" icon="calendar-plus">
+    Predicted date for the next charge
+  </Card>
+  <Card title="Source Consistency" icon="envelope">
+    Whether charges always come from the same email source:
+    - Consistent: Always from the same sender
+    - Variable: Different senders detected
+  </Card>
+</CardGroup>
+
+## Subscription Status
+
+Money Tracker determines status based on the next estimated date:
+
+### Active Subscription
+
+<Card title="Active" icon="circle-check" color="#10b981">
+  Next payment is expected within a reasonable timeframe
+</Card>
+
+- Next date is in the future or recent past
+- Grace period: Up to 7 days after expected date
+
+### Inactive Subscription
+
+<Card title="Inactive" icon="circle-xmark" color="#ef4444">
+  No recent charges detected - subscription may have been cancelled
+</Card>
+
+- Next estimated date has passed by more than the grace period
+- No new charges detected
+
+### Unknown Status
+
+<Card title="Unknown" icon="circle-question" color="#6b7280">
+  Not enough data to determine status
+</Card>
+
+- Insufficient historical data
+- Irregular intervals
+
+## Grace Period
+
+Subscriptions in the grace period show a warning badge:
+
+<Note>
+**Grace Period**: 7 days after the expected payment date
+
+This accounts for:
+- Payment processing delays
+- Billing date variations
+- Weekend/holiday adjustments
+</Note>
+
+Hover over the warning icon to see grace period details.
+
+## Filtering and Sorting
+
+### Filter by Status
+
+<Tabs>
+  <Tab title="All">
+    Show all detected subscriptions regardless of status
+  </Tab>
+  <Tab title="Active">
+    Show only active subscriptions with upcoming payments
+  </Tab>
+  <Tab title="Inactive">
+    Show only inactive/cancelled subscriptions
+  </Tab>
+  <Tab title="Unknown">
+    Show subscriptions with undetermined status
+  </Tab>
+</Tabs>
+
+### Sort Options
+
+- **By Status** (default): Active first, then inactive, then unknown
+- **By Next Date**: Soonest upcoming payment first
+- **By Merchant Name**: Alphabetical order
+- **By Amount (High to Low)**: Most expensive subscriptions first
+- **By Amount (Low to High)**: Least expensive subscriptions first
+- **By Confidence**: Highest confidence first
+
+## View Modes
+
+### List View
+
+<Card title="List View" icon="list">
+  Compact cards showing all subscriptions in a scrollable list (default)
+</Card>
+
+### Grid View
+
+<Card title="Grid View" icon="grid">
+  Larger cards in a responsive grid layout (2-3 columns depending on screen size)
+</Card>
+
+Toggle between views using the buttons in the header.
+
+## Frequency Types
+
+Money Tracker detects these recurring patterns:
+
+| Frequency | Interval | Examples |
+|-----------|----------|----------|
+| **Daily** | Every 1-2 days | Ride-sharing, food delivery |
+| **Weekly** | Every 7 days | Weekly meal kits, cleaners |
+| **Monthly** | Every 28-31 days | Netflix, Spotify, utilities |
+| **Yearly** | Every 365 days | Annual memberships, domain renewals |
+| **Unknown** | Irregular intervals | Occasional charges |
+
+## Confidence Score Explained
+
+Confidence is calculated based on:
+
+### High Confidence (75%+)
+
+- Consistent intervals (low standard deviation)
+- Stable amounts (minimal variation)
+- Many occurrences (5+)
+- Always from the same email source
+
+### Medium Confidence (50-74%)
+
+- Mostly consistent intervals
+- Some amount variation
+- 3-4 occurrences
+- Usually from the same source
+
+### Low Confidence (under 50%)
+
+- Irregular intervals
+- Significant amount changes
+- Only 2 occurrences
+- Variable email sources
+
+<Tip>
+Low confidence subscriptions are hidden by default. Adjust the minimum confidence threshold if needed.
+</Tip>
+
+## Subscription Insights
+
+### Total Spending
+
+Each subscription card shows:
+- **Average Amount**: Typical charge amount
+- **Min Amount**: Smallest charge detected
+- **Max Amount**: Largest charge detected
+
+This helps identify:
+- Price increases over time
+- Promotional pricing that ended
+- Variable usage charges
+
+### Interval Analysis
+
+- **Average Interval**: Mean days between charges
+- **Interval Standard Deviation**: How consistent the billing is
+
+Low standard deviation = predictable billing
+High standard deviation = irregular charges
+
+## Common Subscription Types
+
+### Streaming Services
+
+- Netflix, Spotify, Disney+, etc.
+- Usually monthly with consistent amounts
+- High confidence scores
+
+### Software as a Service (SaaS)
+
+- Adobe, Microsoft 365, GitHub, etc.
+- Monthly or annual billing
+- Very predictable intervals
+
+### Utilities
+
+- Electric, water, internet, phone
+- Monthly billing with variable amounts (usage-based)
+- Medium confidence due to amount variation
+
+### Memberships
+
+- Gym, clubs, professional organizations
+- Monthly or annual
+- Consistent amounts, high confidence
+
+### Ride-Sharing / Food Delivery
+
+- Uber, DoorDash, Grubhub
+- High frequency but irregular intervals
+- Lower confidence, may not appear unless used very regularly
+
+## Managing Subscriptions
+
+### Reviewing Subscriptions
+
+<Steps>
+  <Step title="Navigate to Subscriptions">
+    Click "Subscriptions" in the sidebar
+  </Step>
+  <Step title="Review detected subscriptions">
+    Look for:
+    - Subscriptions you forgot about
+    - Price changes (compare min/max amounts)
+    - Inactive subscriptions you can delete
+  </Step>
+  <Step title="Verify next payment dates">
+    Check if upcoming charges align with your expectations
+  </Step>
+</Steps>
+
+### Identifying Forgotten Subscriptions
+
+Look for:
+- Inactive subscriptions you didn't intentionally cancel
+- Services you no longer use but are still paying for
+- Duplicate subscriptions (e.g., multiple streaming services)
+
+### Tracking Price Increases
+
+Compare `avg_amount`, `min_amount`, and `max_amount` to spot:
+- Gradual price increases
+- Promotional pricing that expired
+- Unexpected charges
+
+## Limitations
+
+### Not a Subscription Manager
+
+<Warning>
+Money Tracker detects and displays subscriptions but does not:
+- Cancel subscriptions for you
+- Send renewal reminders (yet)
+- Automatically update subscription details
+</Warning>
+
+You must cancel subscriptions through the service provider directly.
+
+### Detection Accuracy
+
+Subscription detection depends on:
+- Having sufficient transaction history (at least 2 occurrences)
+- Consistent merchant names across transactions
+- Regular billing intervals
+
+Irregular or one-time charges won't be detected as subscriptions.
+
+## Best Practices
+
+<Tip>
+Maximize subscription tracking effectiveness
+</Tip>
+
+1. **Connect your primary email**: Use the Gmail account that receives subscription receipts
+2. **Import historical emails**: Run Email Import to analyze past transactions
+3. **Review regularly**: Check the Subscriptions page monthly for new patterns
+4. **Verify merchant names**: Ensure AI extracts consistent merchant names
+5. **Filter by status**: Focus on active subscriptions to track current spending
+
+## Troubleshooting
+
+### Subscription Not Detected
+
+If a known subscription isn't showing:
+- Ensure you have at least 2 transactions from that merchant
+- Check if merchant name is consistent across transactions
+- Verify confidence score is ≥ 65%
+- Try running Email Import to get more historical data
+
+### Wrong Frequency
+
+If frequency is incorrect:
+- The AI calculates frequency from actual intervals
+- Manual subscription tracking is not currently supported
+- Irregular billing (e.g., usage-based) may show as "unknown"
+
+### Inactive Subscription Still Active
+
+If a subscription shows inactive but you're still paying:
+- Check the last date - there may be a pending charge
+- Verify your email is receiving receipts (check Gmail connection)
+- Wait for the next billing cycle to update status
+
+## Related Features
+
+- [Transactions](/features/transactions) - View individual subscription charges
+- [Gmail Integration](/features/gmail-integration) - Automatic receipt detection
+- [AI Extraction](/features/ai-extraction) - How transactions are identified
+- [Multi-Currency](/features/multi-currency) - Track subscriptions in different currencies

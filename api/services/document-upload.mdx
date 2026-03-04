@@ -1,0 +1,371 @@
+---
+title: Document Upload Service
+description: Service for uploading and processing financial documents using AI
+---
+
+The Document Upload service provides functionality to upload financial documents (receipts, invoices, bank statements) for AI-powered analysis and automatic transaction extraction.
+
+## Installation
+
+```typescript
+import { uploadDocumentForAnalysis } from '../services/document-upload.service';
+```
+
+## Types
+
+### DocumentUploadResult
+
+Result object returned after document processing.
+
+<ResponseField name="success" type="boolean" required>
+  Whether the upload and processing succeeded
+</ResponseField>
+
+<ResponseField name="transaction" type="Record<string, unknown>">
+  Extracted transaction data if processing was successful
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if processing failed
+</ResponseField>
+
+## Functions
+
+### uploadDocumentForAnalysis
+
+Uploads a financial document to the backend for AI-powered analysis and transaction extraction.
+
+```typescript
+async function uploadDocumentForAnalysis(
+  fileData: ArrayBuffer,
+  fileName: string,
+  fileType: string
+): Promise<DocumentUploadResult>
+```
+
+<ParamField path="fileData" type="ArrayBuffer" required>
+  The binary file data as an ArrayBuffer
+</ParamField>
+
+<ParamField path="fileName" type="string" required>
+  Original name of the file (used for logging and processing hints)
+</ParamField>
+
+<ParamField path="fileType" type="string" required>
+  MIME type of the file (e.g., 'image/jpeg', 'application/pdf', 'image/png')
+</ParamField>
+
+<ResponseField name="returns" type="Promise<DocumentUploadResult>">
+  Result object containing success status and extracted transaction data or error
+</ResponseField>
+
+**Throws:**
+- Error if user is not authenticated
+- Error if the upload fails (network issues, server errors)
+- Error if the file type is not supported
+
+## Usage Example
+
+### Basic Upload
+
+```typescript
+import { uploadDocumentForAnalysis } from '../services/document-upload.service';
+
+// Get file from input element
+const fileInput = document.querySelector('input[type="file"]');
+const file = fileInput.files[0];
+
+// Convert to ArrayBuffer
+const fileData = await file.arrayBuffer();
+
+// Upload for analysis
+try {
+  const result = await uploadDocumentForAnalysis(
+    fileData,
+    file.name,
+    file.type
+  );
+
+  if (result.success && result.transaction) {
+    console.log('Transaction extracted:', result.transaction);
+    // Handle successful extraction
+  } else {
+    console.error('Processing failed:', result.error);
+    // Handle failure
+  }
+} catch (error) {
+  console.error('Upload failed:', error);
+  // Handle network or authentication errors
+}
+```
+
+### With React Component
+
+```typescript
+import { useState } from 'react';
+import { uploadDocumentForAnalysis } from '../../services/document-upload.service';
+
+function DocumentUploader() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const fileData = await selectedFile.arrayBuffer();
+      const result = await uploadDocumentForAnalysis(
+        fileData,
+        selectedFile.name,
+        selectedFile.type
+      );
+
+      if (result.success && result.transaction) {
+        console.log('Transaction created:', result.transaction);
+        // Navigate to transaction or show success message
+      } else {
+        setError(result.error || 'Processing failed');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+      setError(errorMsg);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div>
+      <input
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+        disabled={uploading}
+      />
+      <button onClick={handleUpload} disabled={!selectedFile || uploading}>
+        {uploading ? 'Processing...' : 'Upload Document'}
+      </button>
+      {error && <div className="error">{error}</div>}
+    </div>
+  );
+}
+```
+
+### With Progress States
+
+```typescript
+import { useState } from 'react';
+import { uploadDocumentForAnalysis } from '../../services/document-upload.service';
+
+type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'error';
+
+function AdvancedUploader() {
+  const [state, setState] = useState<UploadState>('idle');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+
+    setState('uploading');
+    setError(null);
+
+    try {
+      const fileData = await selectedFile.arrayBuffer();
+      
+      setState('processing');
+      const result = await uploadDocumentForAnalysis(
+        fileData,
+        selectedFile.name,
+        selectedFile.type
+      );
+
+      if (result.success && result.transaction) {
+        setState('success');
+        // Handle success
+      } else {
+        throw new Error(result.error || 'Processing failed');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+      setError(errorMsg);
+      setState('error');
+    }
+  };
+
+  return (
+    <div>
+      {state === 'idle' && (
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+        />
+      )}
+      
+      {state === 'uploading' && <div>Uploading file...</div>}
+      {state === 'processing' && <div>Analyzing document...</div>}
+      {state === 'success' && <div>Transaction extracted successfully!</div>}
+      {state === 'error' && <div className="error">{error}</div>}
+      
+      <button 
+        onClick={handleUpload} 
+        disabled={!selectedFile || state !== 'idle'}
+      >
+        Upload & Process
+      </button>
+    </div>
+  );
+}
+```
+
+## Supported File Types
+
+The service supports common financial document formats:
+
+- **Images**: JPEG, PNG, HEIC, WebP
+- **Documents**: PDF
+
+<Note>
+  The AI analysis works best with clear, well-lit photos or scans. Ensure text is readable and not obscured.
+</Note>
+
+## Error Handling
+
+### Common Errors
+
+**Authentication Required**
+```typescript
+try {
+  await uploadDocumentForAnalysis(fileData, fileName, fileType);
+} catch (error) {
+  if (error.message === 'Authentication required') {
+    // Redirect to login or refresh session
+  }
+}
+```
+
+**Upload Failed**
+```typescript
+try {
+  const result = await uploadDocumentForAnalysis(fileData, fileName, fileType);
+  
+  if (!result.success) {
+    // Handle processing errors
+    console.error('Processing error:', result.error);
+  }
+} catch (error) {
+  // Handle network errors
+  console.error('Network error:', error);
+}
+```
+
+### Best Practices
+
+1. **Validate file before upload**:
+   ```typescript
+   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+
+   if (file.size > MAX_FILE_SIZE) {
+     throw new Error('File too large. Maximum size is 10MB.');
+   }
+
+   if (!ALLOWED_TYPES.includes(file.type)) {
+     throw new Error('Unsupported file type.');
+   }
+   ```
+
+2. **Handle loading states**:
+   ```typescript
+   const [isUploading, setIsUploading] = useState(false);
+   
+   setIsUploading(true);
+   try {
+     await uploadDocumentForAnalysis(...);
+   } finally {
+     setIsUploading(false);
+   }
+   ```
+
+3. **Provide user feedback**:
+   ```typescript
+   // Show different messages based on state
+   if (uploading) return 'Uploading...';
+   if (processing) return 'Analyzing document...';
+   if (success) return 'Transaction created!';
+   ```
+
+## Dependencies
+
+- **Supabase Client**: Uses `getSupabase()` for authentication
+- **Config**: Uses `getConfig()` to get Supabase URL
+- **Edge Function**: Calls the `process-document` Supabase Edge Function
+  - Endpoint: `{supabaseUrl}/functions/v1/process-document`
+  - Method: POST
+  - Headers: Authorization (Bearer token), Content-Type, X-File-Name
+  - Body: Raw file data (ArrayBuffer)
+
+## Processing Pipeline
+
+1. **Authentication**: Verifies user has active session
+2. **Upload**: Sends file to Edge Function
+3. **AI Analysis**: Backend uses AI to extract transaction details
+4. **Validation**: Validates extracted data
+5. **Database**: Creates transaction record
+6. **Response**: Returns success with transaction data
+
+## Transaction Extraction
+
+The AI analyzes documents to extract:
+
+- **Amount**: Transaction total
+- **Merchant**: Business name
+- **Date**: Transaction date
+- **Category**: Suggested category
+- **Currency**: Currency code
+- **Payment Method**: How payment was made
+- **Line Items**: Individual items (for receipts)
+
+<Note>
+  Extracted data is automatically saved as a transaction in your account. Review and edit the transaction if needed after processing.
+</Note>
+
+## Rate Limiting
+
+The Edge Function may have rate limits. Handle rate limit errors gracefully:
+
+```typescript
+try {
+  const result = await uploadDocumentForAnalysis(fileData, fileName, fileType);
+} catch (error) {
+  if (error.message.includes('rate limit')) {
+    // Show rate limit message
+    alert('Too many uploads. Please wait a moment and try again.');
+  }
+}
+```
+
+## Testing
+
+For testing, use sample receipts or invoices:
+
+```typescript
+// Test with a mock file
+const testFile = new File(['test content'], 'test-receipt.jpg', {
+  type: 'image/jpeg'
+});
+
+const fileData = await testFile.arrayBuffer();
+const result = await uploadDocumentForAnalysis(
+  fileData,
+  testFile.name,
+  testFile.type
+);
+
+console.log('Test result:', result);
+```

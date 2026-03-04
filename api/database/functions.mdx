@@ -1,0 +1,651 @@
+---
+title: Database Functions
+description: PostgreSQL functions and stored procedures in Money Tracker
+---
+
+Money Tracker uses PostgreSQL functions for encryption, automation, and complex queries. This page documents all database functions and their usage.
+
+## Utility Functions
+
+### update_updated_at_column()
+
+Automatically updates the `updated_at` timestamp when a row is modified.
+
+**Type:** Trigger Function
+
+**Language:** plpgsql
+
+**Usage:** Attached to BEFORE UPDATE triggers on most tables
+
+```sql
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+```
+
+**Applied to:**
+- users
+- user_oauth_tokens
+- gmail_watches
+- pubsub_subscriptions
+- transactions (via `update_emails_updated_at` trigger)
+- seeds
+- notification_categories
+- notification_types
+- user_notification_preferences
+- notifications
+
+**Example:**
+```sql
+CREATE TRIGGER update_users_updated_at 
+  BEFORE UPDATE ON users 
+  FOR EACH ROW 
+  EXECUTE FUNCTION update_updated_at_column();
+```
+
+---
+
+### handle_new_user()
+
+Automatically creates a user record in the `users` table when a new auth user is created.
+
+**Type:** Trigger Function
+
+**Language:** plpgsql
+
+**Security:** DEFINER
+
+```sql
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.users (id, email, name)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(
+          NEW.raw_user_meta_data->>'name', 
+          NEW.raw_user_meta_data->>'full_name', 
+          split_part(NEW.email, '@', 1)
+        )
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Trigger:**
+```sql
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW 
+    EXECUTE FUNCTION handle_new_user();
+```
+
+**Behavior:**
+- Triggered after a new user signs up
+- Extracts name from metadata or uses email prefix as fallback
+- Creates corresponding record in public.users table
+
+---
+
+## Encryption Functions
+
+### encrypt_text()
+
+Encrypts text using PostgreSQL's pgcrypto extension.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** DEFINER
+
+**Parameters:**
+<ParamField path="text_to_encrypt" type="TEXT" required>
+  Plain text to encrypt
+</ParamField>
+
+<ParamField path="encryption_key" type="TEXT" required>
+  Encryption key/passphrase
+</ParamField>
+
+**Returns:** BYTEA (encrypted data)
+
+```sql
+CREATE OR REPLACE FUNCTION encrypt_text(
+  text_to_encrypt TEXT, 
+  encryption_key TEXT
+)
+RETURNS BYTEA AS $$
+BEGIN
+  RETURN pgp_sym_encrypt(text_to_encrypt, encryption_key);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Example:**
+```sql
+UPDATE user_oauth_tokens 
+SET access_token_encrypted = encrypt_text(access_token, 'secret-key')
+WHERE id = 'token-uuid';
+```
+
+---
+
+### decrypt_text()
+
+Decrypts data encrypted by `encrypt_text()`.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** DEFINER
+
+**Parameters:**
+<ParamField path="encrypted_data" type="BYTEA" required>
+  Encrypted data to decrypt
+</ParamField>
+
+<ParamField path="encryption_key" type="TEXT" required>
+  Decryption key/passphrase (must match encryption key)
+</ParamField>
+
+**Returns:** TEXT (decrypted plain text)
+
+```sql
+CREATE OR REPLACE FUNCTION decrypt_text(
+  encrypted_data BYTEA, 
+  encryption_key TEXT
+)
+RETURNS TEXT AS $$
+BEGIN
+  RETURN pgp_sym_decrypt(encrypted_data, encryption_key);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Example:**
+```sql
+SELECT decrypt_text(access_token_encrypted, 'secret-key') as token
+FROM user_oauth_tokens 
+WHERE id = 'token-uuid';
+```
+
+<Warning>
+  These functions use `SECURITY DEFINER` which means they run with the privileges of the user who created them. Use carefully and never expose the encryption key to clients.
+</Warning>
+
+---
+
+## Data Access Functions
+
+### get_distinct_currencies()
+
+Returns distinct currency codes for the current user's transactions.
+
+**Type:** Function
+
+**Language:** plpgsql (updated to SQL in later migration)
+
+**Security:** DEFINER
+
+**Access:** Granted to authenticated users
+
+**Returns:** TABLE (currency TEXT)
+
+**Version 1 (plpgsql):**
+```sql
+CREATE OR REPLACE FUNCTION get_distinct_currencies()
+RETURNS TABLE (currency TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT t.currency::TEXT
+  FROM transactions t
+  WHERE t.user_id = auth.uid()
+  ORDER BY t.currency;
+END;
+$$;
+```
+
+**Version 2 (SQL, simplified):**
+```sql
+CREATE OR REPLACE FUNCTION public.get_distinct_currencies()
+RETURNS TABLE (currency text)
+LANGUAGE sql
+SECURITY DEFINER
+IMMUTABLE
+SET search_path = ''
+AS $$
+  SELECT DISTINCT currency FROM public.transactions;
+$$;
+```
+
+**Usage:**
+```sql
+SELECT * FROM get_distinct_currencies();
+```
+
+**Example Response:**
+```sql
+currency
+--------
+EUR
+GBP
+USD
+```
+
+---
+
+### get_active_gmail_emails()
+
+Returns active Gmail email addresses for the current user.
+
+**Type:** Function
+
+**Language:** plpgsql (updated to SQL in later migration)
+
+**Security:** DEFINER
+
+**Access:** Granted to authenticated users
+
+**Returns:** TABLE (gmail_email TEXT)
+
+**Version 1 (plpgsql):**
+```sql
+CREATE OR REPLACE FUNCTION get_active_gmail_emails()
+RETURNS TABLE (gmail_email TEXT)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT uot.gmail_email::TEXT
+  FROM user_oauth_tokens uot
+  WHERE uot.user_id = auth.uid()
+    AND uot.is_active = true
+  ORDER BY uot.gmail_email;
+END;
+$$;
+```
+
+**Version 2 (SQL, no user filter):**
+```sql
+CREATE OR REPLACE FUNCTION public.get_active_gmail_emails()
+RETURNS TABLE (gmail_email text)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT gmail_email
+  FROM public.user_oauth_tokens
+  WHERE is_active = true;
+END;
+$$;
+```
+
+**Usage:**
+```sql
+SELECT * FROM get_active_gmail_emails();
+```
+
+**Example Response:**
+```sql
+gmail_email
+-------------------
+john@gmail.com
+jane@gmail.com
+```
+
+---
+
+## Gmail Management Functions
+
+### stop_all_watches_for_user()
+
+Deactivates all Gmail watches for the current authenticated user.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** INVOKER
+
+**Access:** Authenticated users
+
+```sql
+CREATE OR REPLACE FUNCTION public.stop_all_watches_for_user()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  -- Stop all Gmail watches for current user
+  UPDATE public.gmail_watches
+  SET active = false
+  WHERE user_id = auth.uid();
+END;
+$$;
+```
+
+**Usage:**
+```sql
+SELECT stop_all_watches_for_user();
+```
+
+---
+
+### delete_gmail_connection()
+
+Deletes a specific OAuth token connection for the current user.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** INVOKER
+
+**Access:** Authenticated users
+
+**Parameters:**
+<ParamField path="token_id" type="UUID" required>
+  ID of the OAuth token to delete
+</ParamField>
+
+```sql
+CREATE OR REPLACE FUNCTION public.delete_gmail_connection(
+  token_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  -- Delete specific OAuth token if owned by user
+  DELETE FROM public.user_oauth_tokens
+  WHERE id = delete_gmail_connection.token_id
+    AND user_id = auth.uid();
+END;
+$$;
+```
+
+**Usage:**
+```sql
+SELECT delete_gmail_connection('123e4567-e89b-12d3-a456-426614174000');
+```
+
+---
+
+### renew_watches_for_user()
+
+Renews/reactivates Gmail watches for the current user.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** INVOKER
+
+**Access:** Authenticated users
+
+```sql
+CREATE OR REPLACE FUNCTION public.renew_watches_for_user()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+BEGIN
+  -- Renew/activate watches for current user
+  UPDATE public.gmail_watches
+  SET expires_at = now() + interval '7 days',
+      active = true
+  WHERE user_id = auth.uid() 
+    AND expires_at < now();
+END;
+$$;
+```
+
+**Usage:**
+```sql
+SELECT renew_watches_for_user();
+```
+
+---
+
+### renew_gmail_watches()
+
+Cron job function that triggers Gmail watch renewal via backend API.
+
+**Type:** Function
+
+**Language:** plpgsql
+
+**Security:** DEFINER
+
+**Access:** Called by pg_cron scheduler
+
+**Schedule:** Daily at 2 AM UTC
+
+```sql
+CREATE OR REPLACE FUNCTION renew_gmail_watches()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  backend_url text := 'https://backend-production-74b9.up.railway.app/renew-watches';
+BEGIN
+  -- Make HTTP request to backend renewal endpoint
+  PERFORM net.http_post(
+    url := backend_url,
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    body := jsonb_build_object('action', 'renew_all')
+  );
+  
+  -- Log execution
+  INSERT INTO cron_job_logs (job_name, status, details) 
+  VALUES ('renew-gmail-watches', 'executed', 'Gmail watches renewal triggered');
+  
+  RAISE LOG 'Gmail watches renewal triggered at %', NOW();
+EXCEPTION
+  WHEN OTHERS THEN
+    -- Log error
+    INSERT INTO cron_job_logs (job_name, status, details) 
+    VALUES ('renew-gmail-watches', 'error', SQLERRM);
+    
+    RAISE LOG 'Error triggering Gmail watches renewal: %', SQLERRM;
+END;
+$$;
+```
+
+**Cron Schedule:**
+```sql
+SELECT cron.schedule(
+  'renew-gmail-watches',
+  '0 2 * * *',  -- Daily at 2 AM UTC
+  'SELECT renew_gmail_watches()'
+);
+```
+
+<Info>
+  This function requires the `pg_net` extension to make HTTP requests. It's designed to run automatically via pg_cron.
+</Info>
+
+---
+
+## Analytics Functions
+
+### get_subscription_candidates()
+
+Analyzes transactions to detect potential recurring subscriptions.
+
+**Type:** Function
+
+**Language:** SQL
+
+**Security:** DEFINER
+
+**Access:** Granted to authenticated users
+
+**Parameters:**
+<ParamField path="p_min_occurrences" type="INTEGER" default="2">
+  Minimum number of occurrences to consider as subscription
+</ParamField>
+
+<ParamField path="p_min_confidence" type="NUMERIC" default="50">
+  Minimum confidence score (0-100) to include in results
+</ParamField>
+
+**Returns:** TABLE with subscription candidates
+
+<ResponseField name="merchant_display" type="TEXT">
+  Display name of the merchant
+</ResponseField>
+
+<ResponseField name="merchant_normalized" type="TEXT">
+  Normalized merchant name (cleaned for grouping)
+</ResponseField>
+
+<ResponseField name="currency" type="TEXT">
+  Currency of the subscription
+</ResponseField>
+
+<ResponseField name="avg_amount" type="NUMERIC">
+  Average transaction amount
+</ResponseField>
+
+<ResponseField name="min_amount" type="NUMERIC">
+  Minimum transaction amount
+</ResponseField>
+
+<ResponseField name="max_amount" type="NUMERIC">
+  Maximum transaction amount
+</ResponseField>
+
+<ResponseField name="occurrences" type="INTEGER">
+  Number of transactions detected
+</ResponseField>
+
+<ResponseField name="interval_days_avg" type="NUMERIC">
+  Average days between transactions
+</ResponseField>
+
+<ResponseField name="interval_stddev" type="NUMERIC">
+  Standard deviation of interval (consistency measure)
+</ResponseField>
+
+<ResponseField name="frequency" type="TEXT">
+  Detected frequency: 'monthly', 'yearly', or 'unknown'
+</ResponseField>
+
+<ResponseField name="last_date" type="DATE">
+  Date of most recent transaction
+</ResponseField>
+
+<ResponseField name="next_estimated_date" type="DATE">
+  Estimated date of next occurrence
+</ResponseField>
+
+<ResponseField name="category" type="TEXT">
+  Most common transaction category
+</ResponseField>
+
+<ResponseField name="source_email_consistent" type="BOOLEAN">
+  Whether all transactions came from the same email
+</ResponseField>
+
+<ResponseField name="confidence_score" type="NUMERIC">
+  Overall confidence score (0-100)
+</ResponseField>
+
+**Algorithm:**
+
+The function uses a sophisticated scoring algorithm:
+
+1. **Merchant Normalization:** Cleans merchant names by removing common suffixes (.com, Inc, LLC) and normalizing whitespace
+
+2. **Filtering:** Only considers:
+   - Expense transactions
+   - Positive amounts
+   - Categories like 'services', 'entertainment', 'health', etc.
+   - Merchants with at least `p_min_occurrences` transactions
+
+3. **Interval Analysis:** Calculates time between transactions and detects patterns:
+   - Monthly: 25-35 days
+   - Yearly: 350-380 days
+
+4. **Confidence Scoring (0-100):**
+   - **Occurrences (20%):** More occurrences = higher confidence
+   - **Interval Regularity (35%):** Consistent timing = higher confidence
+   - **Amount Consistency (30%):** Similar amounts = higher confidence
+   - **Source Consistency (10%):** Same email = higher confidence
+   - **Category Bonus (5%):** 'services' category gets boost
+
+**Usage:**
+```sql
+-- Default: minimum 2 occurrences, 50% confidence
+SELECT * FROM get_subscription_candidates();
+
+-- Stricter: minimum 3 occurrences, 70% confidence
+SELECT * FROM get_subscription_candidates(3, 70);
+```
+
+**Example Response:**
+```json
+[
+  {
+    "merchant_display": "Netflix",
+    "merchant_normalized": "netflix",
+    "currency": "USD",
+    "avg_amount": 15.99,
+    "min_amount": 15.99,
+    "max_amount": 15.99,
+    "occurrences": 12,
+    "interval_days_avg": 30.5,
+    "interval_stddev": 1.2,
+    "frequency": "monthly",
+    "last_date": "2026-02-15",
+    "next_estimated_date": "2026-03-17",
+    "category": "services",
+    "source_email_consistent": true,
+    "confidence_score": 94.5
+  }
+]
+```
+
+<Tip>
+  This function is useful for building subscription tracking features, budget forecasting, and detecting forgotten subscriptions.
+</Tip>
+
+---
+
+## Function Permissions
+
+All user-callable functions are granted to the `authenticated` role:
+
+```sql
+GRANT EXECUTE ON FUNCTION get_distinct_currencies() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_active_gmail_emails() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_subscription_candidates(integer, numeric) TO authenticated;
+```
+
+<Warning>
+  Functions marked `SECURITY DEFINER` run with the privileges of the function creator, bypassing RLS. Always validate user permissions within the function when using SECURITY DEFINER.
+</Warning>
+
+<Info>
+  Functions marked `SECURITY INVOKER` run with the privileges of the calling user and respect RLS policies automatically.
+</Info>

@@ -1,0 +1,797 @@
+---
+title: "Architecture"
+description: "Deep dive into Money Tracker's system design, components, and data flow"
+---
+
+## System Overview
+
+Money Tracker is a full-stack application built with modern, serverless technologies. The architecture emphasizes real-time data processing, AI-powered extraction, and scalable infrastructure.
+
+```
+┌─────────────┐
+│   Gmail     │
+│   Inbox     │
+└──────┬──────┘
+       │
+       │ OAuth 2.0
+       │ Gmail API
+       ▼
+┌─────────────────────────────────────┐
+│         Google Cloud                │
+│  ┌─────────────┐   ┌─────────────┐ │
+│  │ Gmail API   │   │   Pub/Sub   │ │
+│  │ Watch       │──▶│   Topic     │ │
+│  └─────────────┘   └──────┬──────┘ │
+└───────────────────────────┼─────────┘
+                            │ Webhook
+                            ▼
+┌─────────────────────────────────────┐
+│           Supabase                  │
+│  ┌─────────────┐   ┌─────────────┐ │
+│  │ Edge        │──▶│ PostgreSQL  │ │
+│  │ Functions   │   │ Database    │ │
+│  └──────┬──────┘   └─────────────┘ │
+│         │                           │
+│         │ Realtime                  │
+│         ▼                           │
+│  ┌─────────────┐                   │
+│  │  Realtime   │                   │
+│  │  Subscript. │                   │
+│  └──────┬──────┘                   │
+└─────────┼───────────────────────────┘
+          │
+          │ WebSocket
+          ▼
+┌─────────────────────────────────────┐
+│       React Frontend                │
+│  ┌─────────────┐   ┌─────────────┐ │
+│  │  TanStack   │   │   Framer    │ │
+│  │   Query     │   │   Motion    │ │
+│  └─────────────┘   └─────────────┘ │
+└─────────────────────────────────────┘
+          │
+          │ AI Extraction
+          ▼
+┌─────────────────────────────────────┐
+│          xAI Grok                   │
+│     Structured Output + Vision      │
+└─────────────────────────────────────┘
+```
+
+## Tech Stack Breakdown
+
+### Frontend
+
+**React** with modern tooling:
+
+```json
+{
+  "react": "^19",
+  "react-dom": "^19",
+  "react-router-dom": "^7.12.0"
+}
+```
+
+- **React 19**: Latest React with Server Components support (not used yet)
+- **React Router 7**: File-based routing with data loading
+- **Bun**: Fast JavaScript runtime and bundler (replaces Node.js + Webpack)
+
+**State Management**:
+
+```json
+{
+  "@tanstack/react-query": "^5.90.19",
+  "@tanstack/react-query-devtools": "^5.91.2"
+}
+```
+
+- **TanStack Query**: Server state management, caching, and synchronization
+- Automatic background refetching
+- Optimistic updates for better UX
+- DevTools for debugging queries
+
+**UI Libraries**:
+
+```json
+{
+  "tailwindcss": "^4.1.11",
+  "framer-motion": "^12.26.2",
+  "lucide-react": "^0.562.0",
+  "recharts": "^3.6.0",
+  "sonner": "^2.0.7"
+}
+```
+
+- **Tailwind CSS 4**: Utility-first CSS framework
+- **Framer Motion**: Animation library for smooth transitions
+- **Lucide React**: Icon library
+- **Recharts**: Charting library for financial visualizations
+- **Sonner**: Toast notifications
+
+**Forms and Validation**:
+
+```json
+{
+  "react-hook-form": "^7.71.1",
+  "@hookform/resolvers": "^5.2.2",
+  "zod": "^4.3.5"
+}
+```
+
+- **React Hook Form**: Performant form handling
+- **Zod**: TypeScript-first schema validation
+- Used for both frontend forms and AI output validation
+
+**Internationalization**:
+
+```json
+{
+  "i18next": "^25.7.4",
+  "react-i18next": "^16.5.3",
+  "i18next-browser-languagedetector": "^8.2.0"
+}
+```
+
+- Supports English and Spanish
+- Automatic language detection from browser settings
+- All UI strings are externalized in JSON files
+
+### Backend
+
+**Supabase** provides the entire backend infrastructure:
+
+1. **PostgreSQL Database**
+   - Stores users, transactions, OAuth tokens, Gmail watches
+   - Row-Level Security (RLS) policies for data isolation
+   - Vault extension for encrypted secrets
+   - pg_cron for scheduled jobs (Gmail watch renewal)
+
+2. **Supabase Auth**
+   - Email/password authentication
+   - User session management
+   - Automatic user record creation via database triggers
+
+3. **Edge Functions** (Deno runtime)
+   - `auth-start`: Initiates Gmail OAuth flow
+   - `auth-callback`: Handles OAuth redirect
+   - `gmail-webhook`: Processes real-time Gmail notifications
+   - `seed-emails`: Imports historical emails
+   - `process-document`: Extracts transactions from uploaded files
+   - `renew-watches`: Cron job to renew Gmail watches every 7 days
+   - `gmail-disconnect`: Disconnects Gmail account
+   - `health`: Health check endpoint
+
+4. **Realtime**
+   - WebSocket subscriptions for live transaction updates
+   - Broadcasts database changes to connected clients
+   - Used for instant UI updates when new transactions arrive
+
+### AI Engine
+
+**xAI Grok** with structured output:
+
+```typescript
+// Example AI extraction function
+import { extractTransactionFromEmail } from '../_shared/ai/transaction-agent.ts'
+
+const aiResult = await extractTransactionFromEmail(
+  emailBodyText,
+  userFullName,
+  imageAttachments,  // Receipt images
+  pdfTexts           // Invoice PDFs
+)
+
+if (aiResult.hasTransaction) {
+  const transaction = aiResult.data
+  // {
+  //   amount: 49.99,
+  //   currency: 'USD',
+  //   type: 'expense',
+  //   description: 'Amazon purchase',
+  //   merchant: 'Amazon',
+  //   category: 'shopping',
+  //   date: '2026-03-04'
+  // }
+}
+```
+
+Capabilities:
+- Structured output using Zod schemas
+- Vision API for image/PDF analysis
+- Multi-modal extraction (text + images + PDFs)
+- Handles various email formats and languages
+
+**Langfuse** for observability:
+- Traces every AI extraction call
+- Monitors token usage, latency, and costs
+- Debugging failed extractions
+- Performance analytics
+
+### Integrations
+
+**Gmail API**:
+- `users.messages.list`: List messages matching a query
+- `users.messages.get`: Fetch full message details
+- `users.history.list`: Get mailbox changes since a historyId
+- `users.watch`: Set up push notifications for new emails
+
+**Google OAuth 2.0**:
+- Scopes requested: `https://www.googleapis.com/auth/gmail.readonly`
+- Token storage: Encrypted in Supabase
+- Automatic token refresh when expired
+
+**Google Pub/Sub**:
+- Topic: `projects/{PROJECT_ID}/topics/gmail-notifications`
+- Push subscription to Supabase Edge Function
+- Delivers Gmail Watch notifications in real-time
+
+## Database Schema
+
+### Core Tables
+
+**users**
+```sql
+CREATE TABLE users (
+    id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+    email VARCHAR(255),
+    name VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**user_oauth_tokens**
+```sql
+CREATE TABLE user_oauth_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    token_type VARCHAR(50) DEFAULT 'Bearer',
+    expires_at TIMESTAMPTZ,
+    scope TEXT,
+    gmail_email VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, gmail_email)
+);
+```
+
+**transactions**
+```sql
+CREATE TABLE transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_oauth_token_id UUID REFERENCES user_oauth_tokens(id),
+    source_email VARCHAR(255),
+    source_message_id VARCHAR(255),
+    date TIMESTAMPTZ,
+    amount DECIMAL(12, 2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+    transaction_description TEXT,
+    transaction_date DATE NOT NULL,
+    merchant VARCHAR(255),
+    category VARCHAR(50) CHECK (category IN (
+        'groceries', 'utilities', 'entertainment', 'transport',
+        'healthcare', 'shopping', 'food', 'subscriptions',
+        'salary', 'uncategorized'
+    )),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_oauth_token_id, source_message_id)
+);
+```
+
+**gmail_watches**
+```sql
+CREATE TABLE gmail_watches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    gmail_email VARCHAR(255) NOT NULL,
+    watch_id VARCHAR(255) UNIQUE,
+    topic_name VARCHAR(255) NOT NULL,
+    label_ids TEXT[],
+    expiration TIMESTAMPTZ,
+    history_id VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, gmail_email)
+);
+```
+
+**seeds**
+```sql
+CREATE TABLE seeds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_oauth_token_id UUID NOT NULL REFERENCES user_oauth_tokens(id),
+    status VARCHAR(20) CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+    message_ids TEXT[],
+    total_emails INTEGER,
+    last_processed_index INTEGER DEFAULT 0,
+    emails_processed_by_ai INTEGER DEFAULT 0,
+    transactions_found INTEGER DEFAULT 0,
+    total_skipped INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**discarded_emails**
+```sql
+CREATE TABLE discarded_emails (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_oauth_token_id UUID NOT NULL REFERENCES user_oauth_tokens(id),
+    message_id VARCHAR(255) NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_oauth_token_id, message_id)
+);
+```
+
+### Row-Level Security (RLS)
+
+All tables have RLS policies to ensure users can only access their own data:
+
+```sql
+-- Example: transactions table policies
+CREATE POLICY "Users can view own transactions" ON transactions
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own transactions" ON transactions
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own transactions" ON transactions
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own transactions" ON transactions
+    FOR DELETE USING (auth.uid() = user_id);
+```
+
+## Data Flow
+
+### Real-Time Email Processing
+
+<Steps>
+  <Step title="Gmail Watch notification">
+    When a new email arrives in the user's inbox, Gmail sends a notification to Google Pub/Sub.
+  </Step>
+
+  <Step title="Pub/Sub pushes to webhook">
+    The Pub/Sub push subscription delivers the notification to the `gmail-webhook` Edge Function:
+
+    ```json
+    {
+      "message": {
+        "data": "eyJlbWFpbEFkZHJlc3MiOiJ1c2VyQGdtYWlsLmNvbSIsImhpc3RvcnlJZCI6MTIzNDV9"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Webhook decodes notification">
+    The Edge Function decodes the base64 payload:
+
+    ```typescript
+    const data = JSON.parse(atob(body.message.data))
+    // { emailAddress: 'user@gmail.com', historyId: 12345 }
+    ```
+  </Step>
+
+  <Step title="Fetch OAuth tokens">
+    The function queries `user_oauth_tokens` to find all active tokens for this Gmail account:
+
+    ```typescript
+    const { data: allTokens } = await supabase
+      .from('user_oauth_tokens')
+      .select('*')
+      .eq('gmail_email', gmailEmail)
+      .eq('is_active', true)
+    ```
+  </Step>
+
+  <Step title="Refresh token if expired">
+    If the access token is expired, refresh it using the refresh token:
+
+    ```typescript
+    await ensureFreshAccessToken(supabase, tokenData, 'webhook_token_check')
+    ```
+  </Step>
+
+  <Step title="Fetch history changes">
+    Use the Gmail History API to get new messages since the last `historyId`:
+
+    ```typescript
+    const historyUrl = `https://www.googleapis.com/gmail/v1/users/me/history?startHistoryId=${lastHistoryId}&historyTypes=messageAdded&labelId=INBOX`
+    const historyResponse = await fetchGmailWithRecovery(supabase, tokenData, historyUrl)
+    ```
+  </Step>
+
+  <Step title="Extract message details">
+    Fetch the full message:
+
+    ```typescript
+    const messageResponse = await fetchGmailWithRecovery(
+      supabase,
+      tokenData,
+      `https://www.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`
+    )
+    ```
+  </Step>
+
+  <Step title="AI extraction">
+    Send email content (text, images, PDFs) to xAI Grok:
+
+    ```typescript
+    const aiResult = await extractTransactionFromEmail(bodyText, userFullName, images, pdfTexts)
+    ```
+  </Step>
+
+  <Step title="Save transaction">
+    If a transaction is detected, insert it into the database:
+
+    ```typescript
+    await supabase.from('transactions').insert({
+      user_id: tokenData.user_id,
+      user_oauth_token_id: tokenData.id,
+      source_email: fromEmail,
+      source_message_id: messageId,
+      amount: aiResult.data.amount,
+      currency: aiResult.data.currency,
+      transaction_type: aiResult.data.type,
+      transaction_description: aiResult.data.description,
+      transaction_date: aiResult.data.date,
+      merchant: aiResult.data.merchant,
+      category: aiResult.data.category
+    })
+    ```
+  </Step>
+
+  <Step title="Realtime broadcast">
+    Supabase Realtime automatically broadcasts the new transaction to all connected clients subscribed to the `transactions` table.
+  </Step>
+
+  <Step title="UI updates">
+    The React frontend receives the Realtime event and updates the UI:
+
+    ```typescript
+    const channel = supabase
+      .channel('transactions')
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'transactions' },
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ['transactions'] })
+        }
+      )
+      .subscribe()
+    ```
+  </Step>
+</Steps>
+
+### Historical Email Import
+
+<Steps>
+  <Step title="User initiates seed">
+    User clicks "Import Emails" in settings. Frontend calls the `seed-emails` Edge Function:
+
+    ```typescript
+    const response = await fetch(`${supabaseUrl}/functions/v1/seed-emails`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ connectionId: tokenId })
+    })
+    ```
+  </Step>
+
+  <Step title="List all messages">
+    The Edge Function queries Gmail for all messages in the last 3 months:
+
+    ```typescript
+    const threeMonthsAgo = new Date()
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+    const afterDate = threeMonthsAgo.toISOString().split('T')[0].replace(/-/g, '/')
+    const query = `after:${afterDate}`
+    const messageIds = await getAllMessageIds(supabase, tokenData, query)
+    ```
+  </Step>
+
+  <Step title="Create seed record">
+    Store the list of message IDs and metadata:
+
+    ```typescript
+    const { data: newSeed } = await supabase.from('seeds').insert({
+      user_id: userId,
+      user_oauth_token_id: connectionId,
+      status: 'processing',
+      message_ids: messageIds,
+      total_emails: messageIds.length,
+      last_processed_index: 0
+    }).select().single()
+    ```
+  </Step>
+
+  <Step title="Process in chunks">
+    Process 30 emails at a time with 10 concurrent AI extractions:
+
+    ```typescript
+    const CHUNK_SIZE = 30
+    const CONCURRENCY = 10
+
+    const chunk = messageIds.slice(startIndex, startIndex + CHUNK_SIZE)
+
+    for (let i = 0; i < chunk.length; i += CONCURRENCY) {
+      const batch = chunk.slice(i, i + CONCURRENCY)
+      await Promise.all(batch.map(messageId => processMessage(messageId)))
+    }
+    ```
+  </Step>
+
+  <Step title="Auto-resume">
+    After each chunk, the Edge Function invokes itself to process the next chunk:
+
+    ```typescript
+    if (!isDone) {
+      fetch(`${supabaseUrl}/functions/v1/seed-emails`, {
+        method: 'POST',
+        body: JSON.stringify({ seedId, resume: true })
+      })
+    }
+    ```
+
+    This continues until all emails are processed.
+  </Step>
+
+  <Step title="Update progress">
+    Progress is saved to the database after each chunk:
+
+    ```typescript
+    await supabase.from('seeds').update({
+      last_processed_index: newIndex,
+      emails_processed_by_ai: newIndex,
+      transactions_found: transactionsFound
+    }).eq('id', seedId)
+    ```
+  </Step>
+
+  <Step title="Completion notification">
+    When finished, a notification is created:
+
+    ```typescript
+    await createSystemNotification({
+      typeKey: 'seed_completed_with_transactions',
+      userId,
+      actionPath: '/transactions',
+      i18nParams: { count: transactionsFound, totalEmails: messageIds.length }
+    })
+    ```
+  </Step>
+</Steps>
+
+### Document Upload
+
+<Steps>
+  <Step title="User uploads file">
+    User selects a PDF or image receipt. The file is converted to base64 and sent to the `process-document` Edge Function.
+  </Step>
+
+  <Step title="AI extraction">
+    The Edge Function sends the file to xAI Grok Vision API for analysis:
+
+    ```typescript
+    const aiResult = await extractTransactionFromDocument(base64Data, mimeType)
+    ```
+  </Step>
+
+  <Step title="Save transaction">
+    If successful, the transaction is saved to the database and appears in the UI via Realtime.
+  </Step>
+</Steps>
+
+## Component Interaction
+
+### Frontend Architecture
+
+```
+src/
+├── index.tsx              # Entry point
+├── App.tsx                # Root component with providers
+├── routes/
+│   └── index.tsx          # Route definitions
+├── pages/
+│   ├── Home.tsx           # Dashboard
+│   ├── Transactions.tsx   # Transaction list
+│   ├── Metrics.tsx        # Analytics
+│   ├── Subscriptions.tsx  # Subscription detection
+│   └── Settings.tsx       # User settings
+├── components/
+│   ├── layout/
+│   │   ├── DashboardLayout.tsx
+│   │   └── Sidebar.tsx
+│   ├── transactions/
+│   │   ├── TransactionList.tsx
+│   │   ├── TransactionCard.tsx
+│   │   ├── TransactionFilters.tsx
+│   │   ├── AddTransactionButton.tsx
+│   │   ├── EditTransactionModal.tsx
+│   │   └── UploadTransactionModal.tsx
+│   ├── metrics/
+│   │   ├── MetricCard.tsx
+│   │   ├── FilterBar.tsx
+│   │   └── InsightsSection.tsx
+│   └── charts/
+│       ├── MonthlyTrendChart.tsx
+│       └── CategoryPieChart.tsx
+├── hooks/
+│   ├── useAuth.tsx
+│   └── useTransactionsRealtime.tsx
+├── lib/
+│   ├── supabase.ts        # Supabase client
+│   └── query-client.ts    # TanStack Query config
+└── i18n/
+    └── locales/
+        ├── en.json
+        └── es.json
+```
+
+### Edge Functions Architecture
+
+```
+supabase/functions/
+├── auth-start/
+│   └── index.ts           # Initiate OAuth flow
+├── auth-callback/
+│   └── index.ts           # Handle OAuth redirect
+├── gmail-webhook/
+│   └── index.ts           # Process real-time emails
+├── seed-emails/
+│   └── index.ts           # Import historical emails
+├── process-document/
+│   └── index.ts           # Extract from uploads
+├── renew-watches/
+│   └── index.ts           # Cron job for watch renewal
+├── gmail-disconnect/
+│   └── index.ts           # Disconnect Gmail
+├── health/
+│   └── index.ts           # Health check
+└── _shared/
+    ├── ai/
+    │   └── transaction-agent.ts
+    ├── lib/
+    │   ├── gmail-auth.ts
+    │   ├── langfuse.ts
+    │   ├── supabase.ts
+    │   └── attachment-extractor.ts
+    ├── auth.ts
+    ├── cors.ts
+    └── notifications.ts
+```
+
+## Deployment Architecture
+
+### Local Development
+
+```
+docker-compose.yml:
+  - frontend (Bun + React)
+  - supabase-cli (PostgreSQL, Auth, Edge Functions, Studio)
+```
+
+Both services communicate over Docker's internal network. The frontend uses `host.docker.internal` to reach the Supabase stack.
+
+### Production (Example)
+
+- **Frontend**: Deployed to Vercel, Netlify, or Railway
+- **Backend**: Supabase Cloud (managed PostgreSQL, Auth, Edge Functions)
+- **Secrets**: Stored in Supabase Edge Function secrets and Vault
+- **Gmail OAuth**: Configured with production redirect URIs
+- **Pub/Sub**: Google Cloud Pub/Sub with push subscription to production webhook URL
+
+## Performance Considerations
+
+### AI Extraction
+
+- **Batching**: Process 10 emails concurrently during seed
+- **Chunking**: Process 30 emails per batch to avoid timeouts
+- **Caching**: Deduplicate emails using `source_message_id` unique constraint
+- **Fallback**: Use keyword detection if AI extraction fails
+
+### Database Optimization
+
+- **Indexes**: All foreign keys and frequently queried columns are indexed
+- **RLS**: Row-Level Security policies filter data at the database level
+- **Realtime**: Only broadcast changes to subscribed clients
+
+### Frontend Optimization
+
+- **Query caching**: TanStack Query caches server data for 5 minutes
+- **Optimistic updates**: UI updates immediately before server confirms
+- **Code splitting**: React Router lazy-loads routes
+- **Bun**: Fast bundling and hot reload during development
+
+## Security Model
+
+### Authentication Flow
+
+1. User signs up/logs in with email/password via Supabase Auth
+2. Supabase issues a JWT access token
+3. Frontend stores the token in localStorage
+4. All API requests include the token in the Authorization header
+5. Edge Functions verify the token with Supabase Auth
+
+### OAuth Token Management
+
+1. OAuth tokens are stored in `user_oauth_tokens` table
+2. Access tokens expire after 1 hour
+3. Refresh tokens are used to get new access tokens
+4. If refresh fails, the connection is marked as inactive and the user is notified
+5. Tokens are encrypted at rest in Supabase
+
+### Data Isolation
+
+1. All tables have RLS policies that filter by `user_id`
+2. Edge Functions use the service role key to bypass RLS when needed
+3. User-provided JWT is validated before processing requests
+4. Gmail emails are never stored—only extracted transaction data
+
+## Monitoring and Observability
+
+### Langfuse Integration
+
+All AI operations are traced:
+
+```typescript
+import { langfuse } from '../lib/langfuse.ts'
+
+const trace = langfuse.trace({
+  name: 'extract_transaction',
+  userId: userId,
+  metadata: { emailId: messageId }
+})
+
+const generation = trace.generation({
+  name: 'grok_extraction',
+  model: 'grok-2-vision-1212',
+  input: emailContent
+})
+
+generation.end({ output: aiResult })
+await langfuse.flushAsync()
+```
+
+### Logs
+
+- **Edge Functions**: Console logs are available in Supabase Dashboard
+- **Frontend**: Browser console in development; error tracking in production
+- **Database**: Supabase provides query logs and slow query detection
+
+## Scaling Considerations
+
+### Current Limits
+
+- **Gmail API**: 250 quota units/second (list messages = 5 units, get message = 5 units)
+- **Edge Functions**: 2 GB RAM, 150-second timeout per invocation
+- **Supabase Realtime**: 1000 concurrent connections per project
+- **xAI API**: Rate limits depend on your plan
+
+### Scaling Strategies
+
+1. **Batch processing**: Process emails in chunks to avoid timeouts
+2. **Queue-based architecture**: Use a job queue for large imports
+3. **Horizontal scaling**: Edge Functions scale automatically with load
+4. **Caching**: Cache Gmail API responses to reduce API calls
+5. **Rate limiting**: Implement rate limiting for user-initiated actions
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Guide" icon="docker" href="/deployment/docker-setup">
+    Learn how to deploy Money Tracker
+  </Card>
+  <Card title="Edge Functions" icon="code" href="/api/edge-functions/auth-start">
+    Explore the Edge Functions API
+  </Card>
+</CardGroup>

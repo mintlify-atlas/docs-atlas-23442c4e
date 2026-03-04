@@ -1,0 +1,673 @@
+---
+title: Database Schema
+description: Complete database schema reference for Money Tracker
+---
+
+The Money Tracker database is built on PostgreSQL with Supabase. This page documents all tables, columns, relationships, and constraints.
+
+## Core Tables
+
+### users
+
+Extends Supabase `auth.users` table to store additional user information.
+
+<ParamField path="id" type="UUID" required>
+  Primary key. References `auth.users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="email" type="VARCHAR(255)">
+  User's email address (redundant with auth.users but useful for queries)
+</ParamField>
+
+<ParamField path="name" type="VARCHAR(255)">
+  User's display name
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when user record was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Triggers:**
+- `update_users_updated_at`: Automatically updates `updated_at` before each update
+- `on_auth_user_created`: Automatically creates user record when auth.users entry is created
+
+---
+
+### transactions
+
+Stores all financial transactions extracted from emails or manually added by users.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)`. Owner of this transaction
+</ParamField>
+
+<ParamField path="user_oauth_token_id" type="UUID">
+  References `user_oauth_tokens(id)` with CASCADE delete. The Gmail account that received the transaction email (NULL for manual transactions)
+</ParamField>
+
+<ParamField path="source_email" type="VARCHAR(255)" required>
+  Email address of the sender (merchant, bank, etc.)
+</ParamField>
+
+<ParamField path="source_message_id" type="VARCHAR(255)" unique>
+  Gmail message ID. Ensures each email only creates one transaction
+</ParamField>
+
+<ParamField path="amount" type="NUMERIC(20,2)" required>
+  Transaction amount. Supports values from -99,999,999,999,999.99 to 99,999,999,999,999.99
+</ParamField>
+
+<ParamField path="currency" type="VARCHAR(3)" required default="USD">
+  Currency code (e.g., 'USD', 'EUR', 'GBP')
+</ParamField>
+
+<ParamField path="transaction_type" type="VARCHAR(10)" required>
+  Type of transaction. Must be 'income' or 'expense'
+</ParamField>
+
+<ParamField path="transaction_description" type="TEXT" required>
+  Description of the transaction
+</ParamField>
+
+<ParamField path="transaction_date" type="DATE" required>
+  Date when the transaction occurred
+</ParamField>
+
+<ParamField path="merchant" type="VARCHAR(255)" required>
+  Name of the merchant or entity
+</ParamField>
+
+<ParamField path="category" type="TEXT" required>
+  Transaction category. Must be one of: 'salary', 'entertainment', 'investment', 'food', 'transport', 'services', 'health', 'education', 'housing', 'clothing', 'other'
+</ParamField>
+
+<ParamField path="extraction_confidence" type="NUMERIC(3,2)">
+  AI extraction confidence score (0.00 to 1.00)
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when transaction was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_transactions_user_id` on `user_id`
+- `idx_transactions_source_message_id` on `source_message_id`
+- `idx_transactions_date` on `transaction_date`
+- `idx_transactions_type` on `transaction_type`
+- `idx_transactions_category` on `category`
+- `idx_transactions_created_at` on `created_at`
+- `idx_transactions_user_oauth_token_id` on `user_oauth_token_id`
+
+**Constraints:**
+- `transactions_source_message_id_key`: UNIQUE on `source_message_id`
+- `transactions_category_check`: CHECK category in allowed values
+- `check_amount_range`: CHECK amount within valid range
+
+**Realtime:** Enabled with `REPLICA IDENTITY FULL`
+
+---
+
+### user_oauth_tokens
+
+Stores encrypted OAuth tokens for Gmail API access.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="access_token" type="TEXT">
+  DEPRECATED: Use `access_token_encrypted` instead
+</ParamField>
+
+<ParamField path="access_token_encrypted" type="BYTEA">
+  Encrypted OAuth access token (using pgcrypto)
+</ParamField>
+
+<ParamField path="refresh_token" type="TEXT">
+  DEPRECATED: Use `refresh_token_encrypted` instead
+</ParamField>
+
+<ParamField path="refresh_token_encrypted" type="BYTEA">
+  Encrypted OAuth refresh token (using pgcrypto)
+</ParamField>
+
+<ParamField path="token_type" type="VARCHAR(50)" default="Bearer">
+  OAuth token type
+</ParamField>
+
+<ParamField path="expires_at" type="TIMESTAMPTZ">
+  Token expiration timestamp
+</ParamField>
+
+<ParamField path="scope" type="TEXT">
+  OAuth scopes granted
+</ParamField>
+
+<ParamField path="gmail_email" type="VARCHAR(255)">
+  Gmail address associated with these tokens
+</ParamField>
+
+<ParamField path="is_active" type="BOOLEAN">
+  Whether this token is currently active
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when token was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_user_oauth_tokens_user_id` on `user_id`
+
+**Constraints:**
+- UNIQUE on `(user_id, gmail_email)`
+
+---
+
+### gmail_watches
+
+Tracks active Gmail API push notification watches.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="gmail_email" type="VARCHAR(255)" required>
+  Gmail address being watched
+</ParamField>
+
+<ParamField path="watch_id" type="VARCHAR(255)" unique>
+  Gmail API watch ID
+</ParamField>
+
+<ParamField path="topic_name" type="VARCHAR(255)" required>
+  Google Cloud Pub/Sub topic name
+</ParamField>
+
+<ParamField path="label_ids" type="TEXT[]">
+  Gmail labels being watched (e.g., ['INBOX'])
+</ParamField>
+
+<ParamField path="expiration" type="TIMESTAMPTZ">
+  When this watch expires
+</ParamField>
+
+<ParamField path="expires_at" type="TIMESTAMPTZ">
+  Alternative expiration field
+</ParamField>
+
+<ParamField path="history_id" type="VARCHAR(255)">
+  Last processed Gmail history ID
+</ParamField>
+
+<ParamField path="is_active" type="BOOLEAN" default="true">
+  Whether this watch is active
+</ParamField>
+
+<ParamField path="active" type="BOOLEAN">
+  Alternative active status field
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when watch was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_gmail_watches_user_id` on `user_id`
+- `idx_gmail_watches_watch_id` on `watch_id`
+
+**Constraints:**
+- UNIQUE on `(user_id, gmail_email)`
+- UNIQUE on `watch_id`
+
+---
+
+### pubsub_subscriptions
+
+Manages Google Cloud Pub/Sub subscription configurations.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="subscription_name" type="VARCHAR(255)" unique required>
+  Pub/Sub subscription name
+</ParamField>
+
+<ParamField path="topic_name" type="VARCHAR(255)" required>
+  Pub/Sub topic name
+</ParamField>
+
+<ParamField path="push_endpoint" type="TEXT" required>
+  Webhook URL for push notifications
+</ParamField>
+
+<ParamField path="ack_deadline_seconds" type="INTEGER" default="60">
+  Message acknowledgment deadline
+</ParamField>
+
+<ParamField path="is_active" type="BOOLEAN" default="true">
+  Whether this subscription is active
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when subscription was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_pubsub_subscriptions_user_id` on `user_id`
+- `idx_pubsub_subscriptions_subscription_name` on `subscription_name`
+
+**Constraints:**
+- UNIQUE on `subscription_name`
+- UNIQUE on `(user_id, topic_name)`
+
+---
+
+## Processing Tables
+
+### seeds
+
+Tracks email import jobs ("seed" operations) that fetch historical transactions from Gmail.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="user_oauth_token_id" type="UUID" required>
+  References `user_oauth_tokens(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="status" type="seed_status" required default="pending">
+  Status enum: 'pending', 'processing', 'completed', or 'failed'
+</ParamField>
+
+<ParamField path="error_message" type="TEXT">
+  Error details if status is 'failed'
+</ParamField>
+
+<ParamField path="last_processed_index" type="INTEGER" default="0">
+  Last processed email index for resumable operations
+</ParamField>
+
+<ParamField path="message_ids" type="TEXT[]" default="{}">
+  Array of Gmail message IDs to process
+</ParamField>
+
+<ParamField path="total_emails" type="INTEGER">
+  Total number of emails retrieved from Gmail
+</ParamField>
+
+<ParamField path="transactions_found" type="INTEGER">
+  Number of new transactions found and inserted
+</ParamField>
+
+<ParamField path="total_skipped" type="INTEGER">
+  Number of emails skipped (already processed or not in INBOX)
+</ParamField>
+
+<ParamField path="emails_processed_by_ai" type="INTEGER">
+  Number of emails sent to AI for analysis
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when seed job was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_seeds_user_id` on `user_id`
+- `idx_seeds_status` on `status`
+- `idx_seeds_user_oauth_token_id` on `user_oauth_token_id`
+
+**Comments:**
+> Simple tracking of seed status to prevent duplicate seeds. Seed status: pending (in progress), completed, or failed.
+
+---
+
+### discarded_emails
+
+Caches emails that were analyzed but don't contain transactions. Prevents re-processing and saves AI costs.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_oauth_token_id" type="UUID" required>
+  References `user_oauth_tokens(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="message_id" type="VARCHAR(255)" required>
+  Gmail message ID of the discarded email
+</ParamField>
+
+<ParamField path="reason" type="TEXT">
+  Why the email was discarded (e.g., "No transaction found", "Promotional email")
+</ParamField>
+
+<ParamField path="discarded_at" type="TIMESTAMPTZ" default="NOW()">
+  Timestamp when email was discarded
+</ParamField>
+
+**Indexes:**
+- `idx_discarded_emails_lookup` on `(user_oauth_token_id, message_id)`
+- `idx_discarded_emails_token` on `user_oauth_token_id`
+- `idx_discarded_emails_discarded_at` on `discarded_at DESC`
+
+**Constraints:**
+- UNIQUE on `(user_oauth_token_id, message_id)`
+
+**Comments:**
+> Stores emails that were analyzed but did not contain transactions. Prevents re-processing the same emails in future seed jobs, saving time and AI costs.
+
+---
+
+## Notification Tables
+
+### notification_categories
+
+Defines categories for grouping notification types.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="key" type="TEXT" unique required>
+  Unique category identifier (e.g., 'system')
+</ParamField>
+
+<ParamField path="label_i18n_key" type="TEXT" required>
+  Internationalization key for category label
+</ParamField>
+
+<ParamField path="is_active" type="BOOLEAN" default="true" required>
+  Whether this category is active
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp when category was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+---
+
+### notification_types
+
+Defines specific types of notifications that can be sent to users.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="category_id" type="UUID" required>
+  References `notification_categories(id)` with RESTRICT delete
+</ParamField>
+
+<ParamField path="key" type="TEXT" unique required>
+  Unique notification type identifier
+</ParamField>
+
+<ParamField path="label_i18n_key" type="TEXT" required>
+  Internationalization key for type label
+</ParamField>
+
+<ParamField path="description_i18n_key" type="TEXT" required>
+  Internationalization key for description
+</ParamField>
+
+<ParamField path="title_i18n_key" type="TEXT" required>
+  Internationalization key for notification title
+</ParamField>
+
+<ParamField path="body_i18n_key" type="TEXT" required>
+  Internationalization key for notification body
+</ParamField>
+
+<ParamField path="default_importance" type="notification_importance" default="normal" required>
+  Default importance level: 'low', 'normal', 'high', or 'critical'
+</ParamField>
+
+<ParamField path="is_active" type="BOOLEAN" default="true" required>
+  Whether this notification type is active
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp when type was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Built-in Types:**
+- `seed_completed_with_transactions`: Seed job completed with new transactions found
+- `seed_completed_no_new`: Seed job completed with no new transactions
+- `seed_failed`: Seed job failed
+- `gmail_reconnect_required`: Gmail connection needs re-authentication
+- `gmail_watch_expiring`: Gmail watch is about to expire
+- `gmail_watch_renew_failed`: Failed to renew Gmail watch
+- `gmail_sync_error`: Error during Gmail synchronization
+
+---
+
+### user_notification_preferences
+
+Stores user preferences for each notification type.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="notification_type_id" type="UUID" required>
+  References `notification_types(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="is_enabled" type="BOOLEAN" default="true" required>
+  Whether user wants to receive this notification type
+</ParamField>
+
+<ParamField path="is_muted" type="BOOLEAN" default="false" required>
+  Whether notifications are temporarily muted
+</ParamField>
+
+<ParamField path="muted_until" type="TIMESTAMPTZ">
+  When to unmute notifications (if muted)
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp when preference was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_user_notification_preferences_lookup` on `(user_id, notification_type_id)`
+- `idx_user_notification_preferences_state` on `(user_id, is_enabled, is_muted)`
+
+**Constraints:**
+- `user_notification_preferences_unique`: UNIQUE on `(user_id, notification_type_id)`
+
+---
+
+### notifications
+
+Stores individual notification messages sent to users.
+
+<ParamField path="id" type="UUID" required>
+  Primary key, auto-generated
+</ParamField>
+
+<ParamField path="user_id" type="UUID" required>
+  References `users(id)` with CASCADE delete
+</ParamField>
+
+<ParamField path="notification_type_id" type="UUID" required>
+  References `notification_types(id)` with RESTRICT delete
+</ParamField>
+
+<ParamField path="title_i18n_key" type="TEXT" required>
+  Internationalization key for notification title
+</ParamField>
+
+<ParamField path="body_i18n_key" type="TEXT" required>
+  Internationalization key for notification body
+</ParamField>
+
+<ParamField path="i18n_params" type="JSONB" default="{}" required>
+  Parameters for internationalization template
+</ParamField>
+
+<ParamField path="metadata" type="JSONB" default="{}" required>
+  Additional notification metadata
+</ParamField>
+
+<ParamField path="read_at" type="TIMESTAMPTZ">
+  Timestamp when notification was read (NULL if unread)
+</ParamField>
+
+<ParamField path="is_archived" type="BOOLEAN" default="false" required>
+  Whether notification is archived
+</ParamField>
+
+<ParamField path="is_muted" type="BOOLEAN" default="false" required>
+  Whether notification is muted
+</ParamField>
+
+<ParamField path="importance" type="notification_importance" default="normal" required>
+  Importance level: 'low', 'normal', 'high', or 'critical'
+</ParamField>
+
+<ParamField path="action_path" type="TEXT">
+  App route/path for notification action
+</ParamField>
+
+<ParamField path="icon_key" type="TEXT">
+  Icon identifier for notification
+</ParamField>
+
+<ParamField path="avatar_url" type="TEXT">
+  URL for avatar image
+</ParamField>
+
+<ParamField path="dedupe_key" type="TEXT">
+  Unique key for deduplication
+</ParamField>
+
+<ParamField path="created_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp when notification was created
+</ParamField>
+
+<ParamField path="updated_at" type="TIMESTAMPTZ" default="now()" required>
+  Timestamp of last update (auto-updated by trigger)
+</ParamField>
+
+**Indexes:**
+- `idx_notifications_user_created_at` on `(user_id, created_at DESC)`
+- `idx_notifications_user_read_at` on `(user_id, read_at)`
+- `idx_notifications_user_archived` on `(user_id, is_archived)`
+- `idx_notifications_user_muted` on `(user_id, is_muted)`
+- `idx_notifications_user_importance` on `(user_id, importance)`
+- `idx_notifications_dedupe` on `(user_id, notification_type_id, dedupe_key)` WHERE `dedupe_key IS NOT NULL`
+
+**Realtime:** Enabled via `supabase_realtime` publication
+
+---
+
+## Enums
+
+### seed_status
+
+Status values for seed jobs.
+
+```sql
+CREATE TYPE seed_status AS ENUM (
+  'pending',
+  'processing', 
+  'completed',
+  'failed'
+);
+```
+
+### notification_importance
+
+Importance levels for notifications.
+
+```sql
+CREATE TYPE notification_importance AS ENUM (
+  'low',
+  'normal',
+  'high',
+  'critical'
+);
+```
+
+---
+
+## Extensions
+
+### pgcrypto
+
+Used for encrypting OAuth tokens.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+```
+
+### pg_cron
+
+Used for scheduling recurring jobs (e.g., Gmail watch renewal).
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+```

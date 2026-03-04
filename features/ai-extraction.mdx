@@ -1,0 +1,292 @@
+---
+title: 'AI-Powered Extraction'
+description: 'Understand how Money Tracker uses AI to extract transaction data from emails and documents'
+icon: 'wand-magic-sparkles'
+---
+
+## Overview
+
+Money Tracker uses advanced AI to automatically extract transaction information from emails and uploaded documents. The AI agent analyzes text content, images, and PDFs to identify financial transactions with high accuracy.
+
+## AI Engine
+
+Money Tracker uses the **Grok-4-1-fast-non-reasoning** model from X.AI, optimized for:
+- Fast processing speed
+- High accuracy in financial data extraction
+- Multi-language support
+- Image and document understanding
+
+## What the AI Extracts
+
+The AI identifies and extracts these fields from emails and documents:
+
+<CardGroup cols={2}>
+  <Card title="Transaction Type" icon="arrow-right-arrow-left">
+    Determines if money was received (income) or sent (expense)
+  </Card>
+  <Card title="Merchant" icon="store">
+    The company or person involved in the transaction
+  </Card>
+  <Card title="Amount" icon="dollar-sign">
+    The transaction value (numeric)
+  </Card>
+  <Card title="Currency" icon="coins">
+    3-letter ISO code (USD, EUR, ARS, etc.)
+  </Card>
+  <Card title="Date" icon="calendar">
+    When the transaction occurred
+  </Card>
+  <Card title="Category" icon="tag">
+    Automatic categorization (food, transport, etc.)
+  </Card>
+  <Card title="Description" icon="file-lines">
+    Additional context about the transaction
+  </Card>
+</CardGroup>
+
+## How Email Extraction Works
+
+<Steps>
+  <Step title="Email Reception">
+    When a new email arrives in your INBOX, Money Tracker receives a webhook notification
+  </Step>
+  <Step title="Content Preparation">
+    The system extracts:
+    - Email body text (plain text preferred, HTML as fallback)
+    - Email subject and sender
+    - Image attachments (JPG, PNG, GIF, BMP, TIFF, WebP)
+    - PDF attachments with text extraction
+  </Step>
+  <Step title="Context Building">
+    The AI receives:
+    - Your full name (to determine income vs expense)
+    - All email text content
+    - OCR text from images
+    - Extracted text from PDFs
+  </Step>
+  <Step title="AI Analysis">
+    The AI model analyzes all content sources to:
+    - Determine if a transaction exists
+    - Extract transaction details
+    - Return a confidence assessment
+  </Step>
+  <Step title="Transaction Creation">
+    If a transaction is detected with sufficient confidence:
+    - Data is saved to your transaction list
+    - You're notified (if notifications are enabled)
+    
+    If no transaction is found:
+    - The email is marked as "discarded"
+    - It won't be processed again in future imports
+  </Step>
+</Steps>
+
+## Income vs Expense Detection
+
+The AI uses sophisticated logic to determine transaction direction:
+
+### Income Detection
+
+- **Sender keywords**: "deposit", "payment received", "transfer from", "salary", "refund"
+- **Context clues**: Your name appears as recipient
+- **Banking language**: "credited to your account", "incoming transfer"
+
+### Expense Detection
+
+- **Sender keywords**: "purchase", "payment to", "charge", "debit", "withdrawal"
+- **Context clues**: Your name appears as sender/payer
+- **Banking language**: "debited from your account", "outgoing transfer"
+
+<Tip>
+Providing your full name in user settings helps the AI accurately determine income vs expense
+</Tip>
+
+## Currency Detection
+
+The AI identifies currency using:
+
+<AccordionGroup>
+  <Accordion title="Explicit Currency Codes">
+    ISO 4217 codes like USD, EUR, ARS, GBP are recognized immediately
+  </Accordion>
+  <Accordion title="Currency Symbols">
+    $ (USD), € (EUR), £ (GBP), etc. are detected and converted to ISO codes
+  </Accordion>
+  <Accordion title="Contextual Inference">
+    If currency is ambiguous (e.g., just "$"), the AI uses:
+    - Email sender location/domain
+    - Language of the email
+    - Country-specific formatting
+  </Accordion>
+  <Accordion title="Supported Currencies">
+    - USD (US Dollar)
+    - EUR (Euro)
+    - GBP (British Pound)
+    - ARS (Argentine Peso)
+    - MXN (Mexican Peso)
+    - BRL (Brazilian Real)
+    - CLP (Chilean Peso)
+    - COP (Colombian Peso)
+  </Accordion>
+</AccordionGroup>
+
+## Category Classification
+
+The AI automatically categorizes transactions into 11 categories:
+
+| Category | Examples |
+|----------|----------|
+| **Salary** | Payroll, wages, income deposits |
+| **Food** | Restaurants, groceries, food delivery |
+| **Transport** | Uber, gas, public transit, parking |
+| **Entertainment** | Movies, concerts, subscriptions, games |
+| **Housing** | Rent, mortgage, utilities, repairs |
+| **Health** | Doctor visits, pharmacy, insurance |
+| **Education** | Tuition, courses, books |
+| **Services** | Subscriptions, memberships, professional services |
+| **Clothing** | Apparel, shoes, accessories |
+| **Investment** | Stocks, crypto, retirement contributions |
+| **Other** | Anything that doesn't fit above |
+
+## Document Upload Processing
+
+When you upload a receipt or invoice:
+
+### Image Processing
+
+<Steps>
+  <Step title="Image Upload">
+    Supported formats: JPG, PNG, GIF, BMP, TIFF, WebP (max 3MB)
+  </Step>
+  <Step title="Image Analysis">
+    The AI directly processes the image using vision capabilities:
+    - Reads text from the receipt/invoice
+    - Identifies structured data (amounts, dates, merchant names)
+    - Understands layout and context
+  </Step>
+  <Step title="Transaction Extraction">
+    Extracted data is validated and saved as a transaction
+  </Step>
+</Steps>
+
+### PDF Processing
+
+<Steps>
+  <Step title="PDF Upload">
+    Maximum size: 5MB
+  </Step>
+  <Step title="Text Extraction">
+    Money Tracker extracts all text content from the PDF
+  </Step>
+  <Step title="AI Analysis">
+    The extracted text is sent to the AI for transaction identification
+  </Step>
+  <Step title="Transaction Creation">
+    If a transaction is detected, it's saved to your list
+  </Step>
+</Steps>
+
+## Multi-Language Support
+
+The AI processes emails and documents in multiple languages:
+
+- **English**
+- **Spanish**
+- **Portuguese**
+- And more...
+
+<Note>
+The AI preserves the original language of merchant names and descriptions - it does not translate them
+</Note>
+
+## AI Confidence and Accuracy
+
+### Confidence Scoring
+
+While individual transactions don't show confidence scores, the AI internally evaluates:
+- Clarity of transaction information
+- Presence of required fields (amount, merchant, date)
+- Consistency of data
+
+Low-confidence transactions may be skipped to avoid false positives.
+
+### Quality Factors
+
+Accuracy is highest when emails contain:
+- Clear merchant names
+- Explicit amounts with currency
+- Specific dates
+- Transaction-related keywords
+- Structured formatting (tables, invoices)
+
+### False Positives
+
+The AI is designed to minimize false positives by:
+- Requiring explicit transaction indicators
+- Skipping promotional emails
+- Ignoring advertisements
+- Filtering out email signatures and footers
+
+## Fallback Processing
+
+If the AI service fails, Money Tracker uses keyword-based fallback:
+
+1. Searches for transaction keywords: "purchase", "payment", "charge", currency symbols
+2. If found, creates a basic transaction with:
+   - Merchant: Email sender
+   - Amount: 0 (requires manual update)
+   - Category: "uncategorized"
+
+<Warning>
+Fallback transactions require manual review and editing
+</Warning>
+
+## Email Discard Logic
+
+Emails without transactions are "discarded" to improve efficiency:
+
+- Stored in a `discarded_emails` table
+- Won't be re-processed during future email imports
+- Prevents duplicate analysis
+- Reduces AI processing costs
+
+### Discard Reasons
+
+- "No transaction detected" - AI didn't find financial data
+- "Invalid transaction: amount is 0" - Detected transaction but amount was zero
+- "AI processing failed" - Technical error during analysis
+- "User discarded transaction" - You manually deleted the transaction
+
+## AI Processing Metrics
+
+The Dashboard shows AI activity stats:
+
+<CardGroup cols={3}>
+  <Card title="Emails Processed by AI" icon="envelope-open-text">
+    Total number of emails analyzed
+  </Card>
+  <Card title="Transactions Found" icon="circle-check">
+    Emails that contained valid transactions
+  </Card>
+  <Card title="Emails Skipped" icon="circle-xmark">
+    Emails discarded (no transaction found)
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Tip>
+Maximize AI accuracy with these tips
+</Tip>
+
+1. **Keep your Gmail inbox organized**: The AI only processes INBOX emails
+2. **Don't delete transaction emails**: Let the AI process them first
+3. **Provide your full name**: Helps the AI determine income vs expense
+4. **Upload clear documents**: High-quality images and PDFs improve accuracy
+5. **Review auto-extracted transactions**: Verify category and merchant names
+
+## Related Features
+
+- [Gmail Integration](/features/gmail-integration) - Email monitoring setup
+- [Transactions](/features/transactions) - Manage extracted transactions
+- [Subscriptions](/features/subscriptions) - AI-detected recurring transactions

@@ -1,0 +1,622 @@
+---
+title: Notifications Service
+description: Service for managing in-app notifications and user preferences
+---
+
+The Notifications service provides a comprehensive API for managing user notifications, including filtering, bulk operations, and user preferences.
+
+## Installation
+
+```typescript
+import { createNotificationsService } from '../services/notifications.service';
+import { getSupabase } from '../lib/supabase';
+
+const supabase = await getSupabase();
+const notificationsService = createNotificationsService(supabase);
+```
+
+## Types
+
+### NotificationImportance
+
+```typescript
+type NotificationImportance = 'low' | 'normal' | 'high' | 'urgent';
+```
+
+### NotificationItem
+
+Extended notification with type and category information.
+
+<ResponseField name="id" type="string" required>
+  Unique notification identifier
+</ResponseField>
+
+<ResponseField name="user_id" type="string" required>
+  ID of the user who receives this notification
+</ResponseField>
+
+<ResponseField name="notification_type_id" type="string" required>
+  ID of the notification type
+</ResponseField>
+
+<ResponseField name="title_i18n_key" type="string" required>
+  Internationalization key for the title
+</ResponseField>
+
+<ResponseField name="body_i18n_key" type="string" required>
+  Internationalization key for the body text
+</ResponseField>
+
+<ResponseField name="i18n_params" type="Json">
+  Parameters for i18n string interpolation
+</ResponseField>
+
+<ResponseField name="metadata" type="Json">
+  Additional metadata for the notification
+</ResponseField>
+
+<ResponseField name="action_path" type="string | null">
+  Navigation path when notification is clicked
+</ResponseField>
+
+<ResponseField name="icon_key" type="string | null">
+  Icon identifier for the notification
+</ResponseField>
+
+<ResponseField name="avatar_url" type="string | null">
+  URL for avatar image
+</ResponseField>
+
+<ResponseField name="importance" type="NotificationImportance" required>
+  Importance level of the notification
+</ResponseField>
+
+<ResponseField name="read_at" type="string | null">
+  ISO 8601 timestamp when notification was read
+</ResponseField>
+
+<ResponseField name="is_archived" type="boolean" required>
+  Whether the notification is archived
+</ResponseField>
+
+<ResponseField name="is_muted" type="boolean" required>
+  Whether the notification is muted
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 timestamp when notification was created
+</ResponseField>
+
+<ResponseField name="typeKey" type="string">
+  Key identifying the notification type
+</ResponseField>
+
+<ResponseField name="typeLabelI18nKey" type="string">
+  I18n key for the type label
+</ResponseField>
+
+<ResponseField name="categoryKey" type="string">
+  Key identifying the notification category
+</ResponseField>
+
+### NotificationListFilters
+
+Filters for querying notifications.
+
+<ParamField path="unread" type="boolean">
+  Filter to only unread notifications
+</ParamField>
+
+<ParamField path="archived" type="boolean">
+  Filter by archived status
+</ParamField>
+
+<ParamField path="muted" type="boolean">
+  Filter by muted status
+</ParamField>
+
+<ParamField path="importance" type="NotificationImportance">
+  Filter by importance level
+</ParamField>
+
+<ParamField path="limit" type="number" default="50">
+  Maximum number of notifications to return
+</ParamField>
+
+### NotificationTypePreference
+
+Represents a notification type with its category and user preference.
+
+<ResponseField name="type" type="NotificationTypeRow" required>
+  The notification type definition
+</ResponseField>
+
+<ResponseField name="category" type="NotificationCategoryRow | null" required>
+  The category this type belongs to
+</ResponseField>
+
+<ResponseField name="preference" type="UserNotificationPreferenceRow | null" required>
+  The user's preference for this type, or null if not set
+</ResponseField>
+
+## Class: NotificationsService
+
+### Constructor
+
+```typescript
+new NotificationsService(supabase: SupabaseClient<Database>)
+```
+
+<ParamField path="supabase" type="SupabaseClient<Database>" required>
+  Authenticated Supabase client instance
+</ParamField>
+
+### listNotifications
+
+Retrieve notifications with optional filters.
+
+```typescript
+async listNotifications(
+  filters?: NotificationListFilters
+): Promise<NotificationItem[]>
+```
+
+<ParamField path="filters" type="NotificationListFilters">
+  Optional filters for the notification query
+</ParamField>
+
+<ResponseField name="returns" type="Promise<NotificationItem[]>">
+  Array of notifications with joined type and category data
+</ResponseField>
+
+**Throws:** Supabase errors if the query fails
+
+#### Example
+
+```typescript
+// Get unread notifications
+const unread = await service.listNotifications({ unread: true });
+
+// Get urgent notifications
+const urgent = await service.listNotifications({ importance: 'urgent' });
+
+// Get first 10 non-archived notifications
+const recent = await service.listNotifications({ 
+  archived: false, 
+  limit: 10 
+});
+```
+
+### getUnreadCount
+
+Get the count of unread, non-archived notifications.
+
+```typescript
+async getUnreadCount(): Promise<number>
+```
+
+<ResponseField name="returns" type="Promise<number>">
+  Count of unread notifications
+</ResponseField>
+
+**Throws:** Supabase errors if the query fails
+
+#### Example
+
+```typescript
+const count = await service.getUnreadCount();
+console.log(`You have ${count} unread notifications`);
+```
+
+### markAsRead
+
+Mark notifications as read.
+
+```typescript
+async markAsRead(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to mark as read
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+#### Example
+
+```typescript
+await service.markAsRead(['notif-id-1', 'notif-id-2']);
+```
+
+### markAsUnread
+
+Mark notifications as unread.
+
+```typescript
+async markAsUnread(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to mark as unread
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+### archive
+
+Archive notifications.
+
+```typescript
+async archive(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to archive
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+### unarchive
+
+Unarchive notifications.
+
+```typescript
+async unarchive(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to unarchive
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+### mute
+
+Mute notifications.
+
+```typescript
+async mute(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to mute
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+### unmute
+
+Unmute notifications.
+
+```typescript
+async unmute(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to unmute
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+### setImportance
+
+Set the importance level of notifications.
+
+```typescript
+async setImportance(
+  ids: string[], 
+  importance: NotificationImportance
+): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to update
+</ParamField>
+
+<ParamField path="importance" type="NotificationImportance" required>
+  New importance level
+</ParamField>
+
+**Throws:** Supabase errors if the update fails
+
+#### Example
+
+```typescript
+await service.setImportance(['notif-id-1'], 'urgent');
+```
+
+### delete
+
+Permanently delete notifications.
+
+```typescript
+async delete(ids: string[]): Promise<void>
+```
+
+<ParamField path="ids" type="string[]" required>
+  Array of notification IDs to delete
+</ParamField>
+
+**Throws:** Supabase errors if the deletion fails
+
+<Note>
+  This permanently deletes notifications. Consider archiving instead for a recoverable option.
+</Note>
+
+### listTypePreferences
+
+Get all notification types with user preferences.
+
+```typescript
+async listTypePreferences(): Promise<NotificationTypePreference[]>
+```
+
+<ResponseField name="returns" type="Promise<NotificationTypePreference[]>">
+  Array of notification types with their categories and user preferences
+</ResponseField>
+
+**Throws:** Supabase errors if the query fails
+
+#### Example
+
+```typescript
+const preferences = await service.listTypePreferences();
+
+preferences.forEach(pref => {
+  console.log(`${pref.type.key}: enabled=${pref.preference?.is_enabled}`);
+});
+```
+
+### upsertTypePreference
+
+Create or update a user's preference for a notification type.
+
+```typescript
+async upsertTypePreference(input: {
+  notification_type_id: string;
+  is_enabled?: boolean;
+  is_muted?: boolean;
+  muted_until?: string | null;
+}): Promise<void>
+```
+
+<ParamField path="input.notification_type_id" type="string" required>
+  ID of the notification type
+</ParamField>
+
+<ParamField path="input.is_enabled" type="boolean" default="true">
+  Whether this notification type is enabled
+</ParamField>
+
+<ParamField path="input.is_muted" type="boolean" default="false">
+  Whether this notification type is muted
+</ParamField>
+
+<ParamField path="input.muted_until" type="string | null" default="null">
+  ISO 8601 timestamp until which the type should be muted
+</ParamField>
+
+**Throws:**
+- Supabase errors if the operation fails
+- Error if user is not authenticated
+
+#### Example
+
+```typescript
+// Disable transaction notifications
+await service.upsertTypePreference({
+  notification_type_id: 'transaction-alerts',
+  is_enabled: false
+});
+
+// Mute temporarily
+await service.upsertTypePreference({
+  notification_type_id: 'marketing',
+  is_muted: true,
+  muted_until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+});
+```
+
+### createNotification
+
+Create a new notification for a user.
+
+```typescript
+async createNotification(input: {
+  user_id: string;
+  notification_type_id: string;
+  title_i18n_key: string;
+  body_i18n_key: string;
+  i18n_params?: Json;
+  metadata?: Json;
+  action_path?: string | null;
+  icon_key?: string | null;
+  avatar_url?: string | null;
+  dedupe_key?: string | null;
+  importance?: NotificationImportance;
+}): Promise<void>
+```
+
+<ParamField path="input.user_id" type="string" required>
+  ID of the user to notify
+</ParamField>
+
+<ParamField path="input.notification_type_id" type="string" required>
+  ID of the notification type
+</ParamField>
+
+<ParamField path="input.title_i18n_key" type="string" required>
+  I18n key for the notification title
+</ParamField>
+
+<ParamField path="input.body_i18n_key" type="string" required>
+  I18n key for the notification body
+</ParamField>
+
+<ParamField path="input.i18n_params" type="Json" default="{}">
+  Parameters for i18n string interpolation
+</ParamField>
+
+<ParamField path="input.metadata" type="Json" default="{}">
+  Additional metadata
+</ParamField>
+
+<ParamField path="input.action_path" type="string | null" default="null">
+  Path to navigate when clicked
+</ParamField>
+
+<ParamField path="input.icon_key" type="string | null" default="null">
+  Icon identifier
+</ParamField>
+
+<ParamField path="input.avatar_url" type="string | null" default="null">
+  Avatar image URL
+</ParamField>
+
+<ParamField path="input.dedupe_key" type="string | null" default="null">
+  Key to prevent duplicate notifications
+</ParamField>
+
+<ParamField path="input.importance" type="NotificationImportance" default="'normal'">
+  Importance level
+</ParamField>
+
+**Throws:** Supabase errors if the insertion fails
+
+#### Example
+
+```typescript
+await service.createNotification({
+  user_id: userId,
+  notification_type_id: 'transaction-detected',
+  title_i18n_key: 'notification.transaction.title',
+  body_i18n_key: 'notification.transaction.body',
+  i18n_params: { amount: '$50.00', merchant: 'Starbucks' },
+  action_path: '/transactions/123',
+  importance: 'normal'
+});
+```
+
+## Factory Function
+
+### createNotificationsService
+
+Factory function to create a NotificationsService instance.
+
+```typescript
+function createNotificationsService(
+  supabase: SupabaseClient<Database>
+): NotificationsService
+```
+
+<ParamField path="supabase" type="SupabaseClient<Database>" required>
+  Authenticated Supabase client instance
+</ParamField>
+
+<ResponseField name="returns" type="NotificationsService">
+  New NotificationsService instance
+</ResponseField>
+
+## Error Handling
+
+All async methods throw Supabase errors on failure. Always wrap calls in try-catch blocks:
+
+```typescript
+try {
+  await service.markAsRead(notificationIds);
+} catch (error) {
+  console.error('Failed to mark notifications as read:', error);
+  // Handle error appropriately
+}
+```
+
+## Dependencies
+
+- **Supabase Client**: Required for all database operations
+- **Database Tables**:
+  - `notifications`: Stores notification data
+  - `notification_types`: Defines notification types
+  - `notification_categories`: Groups notification types
+  - `user_notification_preferences`: Stores user preferences
+
+## Usage with React Query
+
+Typical usage pattern with React Query hooks:
+
+```typescript
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createNotificationsService } from '../services/notifications.service';
+import { getSupabase } from '../lib/supabase';
+
+async function getService() {
+  const supabase = await getSupabase();
+  return createNotificationsService(supabase);
+}
+
+export function useNotifications(filters = {}) {
+  return useQuery({
+    queryKey: ['notifications', 'list', filters],
+    queryFn: async () => {
+      const service = await getService();
+      return service.listNotifications(filters);
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useMarkAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const service = await getService();
+      await service.markAsRead(ids);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+```
+
+## Real-time Updates
+
+The service can be combined with Supabase real-time subscriptions:
+
+```typescript
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { getSupabase } from '../lib/supabase';
+
+export function useNotificationsRealtime(userId: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const setup = async () => {
+      const supabase = await getSupabase();
+      
+      const channel = supabase
+        .channel('notifications-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${userId}`,
+          },
+          () => {
+            queryClient.invalidateQueries({ 
+              queryKey: ['notifications'] 
+            });
+          }
+        )
+        .subscribe();
+
+      return () => channel.unsubscribe();
+    };
+
+    setup();
+  }, [queryClient, userId]);
+}
+```

@@ -1,0 +1,552 @@
+---
+title: 'seed-emails'
+description: 'Bulk process historical Gmail messages to extract past transactions'
+---
+
+## Overview
+
+Processes historical Gmail messages in chunks to extract past transactions. Designed for initial account setup or backfilling transaction history. Uses AI-powered extraction and self-invokes to process large volumes of emails without hitting timeout limits.
+
+## Endpoint
+
+```
+POST /functions/v1/seed-emails
+```
+
+## Authentication
+
+Requires valid Supabase authentication. The JWT token must be provided in the `Authorization` header.
+
+## Request Modes
+
+This function operates in two modes:
+
+1. **New Seed Mode** - Starts a new seeding process
+2. **Resume Mode** - Continues an existing seeding process
+
+### Headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token with Supabase JWT
+  
+  Format: `Bearer {token}`
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`
+</ParamField>
+
+### Request Body
+
+#### New Seed Mode
+
+<ParamField body="connectionId" type="string" required>
+  ID of the OAuth token connection (from `user_oauth_tokens` table)
+</ParamField>
+
+#### Resume Mode
+
+<ParamField body="seedId" type="string" required>
+  ID of the existing seed to continue processing
+</ParamField>
+
+<ParamField body="resume" type="boolean" required>
+  Must be `true` to enable resume mode
+</ParamField>
+
+### Example Requests
+
+#### Start New Seed
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/seed-emails' \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "connectionId": "550e8400-e29b-41d4-a716-446655440000"
+  }'
+```
+
+#### Resume Existing Seed
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/seed-emails' \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "seedId": "123e4567-e89b-12d3-a456-426614174000",
+    "resume": true
+  }'
+```
+
+## Response
+
+### New Seed Success (202 Accepted)
+
+Returned when a new seed is created and processing begins:
+
+```json
+{
+  "seedId": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "processing",
+  "done": false,
+  "processed": 30,
+  "transactions": 5,
+  "total": 450
+}
+```
+
+<ResponseField name="seedId" type="string">
+  Unique ID of the created seed
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status: "processing", "completed", or "failed"
+</ResponseField>
+
+<ResponseField name="done" type="boolean">
+  Whether all emails have been processed
+</ResponseField>
+
+<ResponseField name="processed" type="number">
+  Number of emails processed so far
+</ResponseField>
+
+<ResponseField name="transactions" type="number">
+  Number of transactions found so far
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total number of emails to process
+</ResponseField>
+
+### Resume Success (200 OK)
+
+Returned when resuming an existing seed:
+
+```json
+{
+  "done": false,
+  "processed": 60,
+  "transactions": 12,
+  "total": 450
+}
+```
+
+### Completion Response
+
+When all emails are processed:
+
+```json
+{
+  "done": true,
+  "processed": 450,
+  "transactions": 87,
+  "total": 450
+}
+```
+
+### No Messages Found
+
+```json
+{
+  "message": "No messages found",
+  "totalMessages": 0
+}
+```
+
+## Error Responses
+
+### 400 Bad Request
+
+#### Missing Connection ID
+
+```json
+{
+  "error": "Missing connectionId parameter"
+}
+```
+
+### 403 Forbidden
+
+#### Unauthorized Seed Access
+
+```json
+{
+  "error": "Seed not found or unauthorized"
+}
+```
+
+### 404 Not Found
+
+#### Connection Not Found
+
+```json
+{
+  "error": "Connection not found or unauthorized"
+}
+```
+
+### 405 Method Not Allowed
+
+```json
+{
+  "error": "Method not allowed"
+}
+```
+
+### 409 Conflict
+
+#### Seed Already In Progress
+
+```json
+{
+  "error": "A seed is already in progress",
+  "seedId": "123e4567-e89b-12d3-a456-426614174000"
+}
+```
+
+#### Gmail Reconnection Required
+
+```json
+{
+  "error": "Gmail authentication expired or invalid",
+  "code": "GMAIL_RECONNECT_REQUIRED",
+  "reconnectRequired": true
+}
+```
+
+### 500 Internal Server Error
+
+#### Seed Creation Failed
+
+```json
+{
+  "error": "Failed to create seed"
+}
+```
+
+#### Chunk Processing Failed
+
+```json
+{
+  "error": "Failed to process seed chunk"
+}
+```
+
+#### General Error
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Processing Flow
+
+### New Seed Flow
+
+#### 1. Validation
+
+- Verifies `connectionId` belongs to authenticated user
+- Checks for existing in-progress seeds
+- Ensures OAuth token is active
+
+#### 2. Message ID Collection
+
+Fetches all message IDs from Gmail API for the past **3 months**:
+
+```
+GET https://www.googleapis.com/gmail/v1/users/me/messages
+  ?q=after:{YYYY/MM/DD}
+  &pageToken={optional}
+```
+
+Paginates through all results to collect complete message ID list.
+
+#### 3. Seed Creation
+
+Creates record in `seeds` table:
+
+```typescript
+{
+  user_id: string,
+  user_oauth_token_id: string,
+  status: 'processing',
+  message_ids: string[],        // All message IDs to process
+  total_emails: number,
+  last_processed_index: 0,
+  transactions_found: 0,
+  emails_processed_by_ai: 0
+}
+```
+
+#### 4. Chunk Processing
+
+Processes first chunk of **30 messages**.
+
+#### 5. Auto-Invocation
+
+If more chunks remain, automatically invokes itself with resume mode (fire-and-forget):
+
+```typescript
+fetch(`${supabaseUrl}/functions/v1/seed-emails`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${authToken}`,
+  },
+  body: JSON.stringify({ seedId, resume: true }),
+})
+```
+
+This continues until all chunks are processed.
+
+### Resume Flow
+
+#### 1. Seed Verification
+
+- Verifies `seedId` belongs to authenticated user
+- Checks seed status (must not be completed or failed)
+
+#### 2. Chunk Processing
+
+Processes next chunk of 30 messages starting from `last_processed_index`.
+
+#### 3. Database Update
+
+Updates seed record:
+
+```typescript
+{
+  last_processed_index: number,
+  emails_processed_by_ai: number,
+  transactions_found: number,
+  status: 'processing' | 'completed'
+}
+```
+
+#### 4. Completion Check
+
+If all messages processed:
+
+- Sets `status` to "completed"
+- Creates system notification
+- Returns `done: true`
+
+Otherwise, auto-invokes for next chunk.
+
+### Message Processing
+
+#### Parallel Processing
+
+Processes messages in parallel batches of **10** (CONCURRENCY):
+
+```typescript
+for (let i = 0; i < chunk.length; i += 10) {
+  const batch = chunk.slice(i, i + 10)
+  await Promise.all(batch.map(processMessage))
+}
+```
+
+#### Per-Message Flow
+
+1. **Fetch Message** - Get full message details from Gmail API
+2. **Duplicate Check** - Skip if already processed (in `transactions` or `discarded_emails`)
+3. **Label Filtering** - Skip if not in INBOX or in SPAM/TRASH
+4. **Content Extraction** - Extract subject, sender, body, attachments
+5. **AI Analysis** - Extract transaction data with `extractTransactionFromEmail()`
+6. **Storage** - Store transaction or mark as discarded
+7. **Langfuse Flush** - Flush AI observability events
+
+#### Transaction Storage
+
+If AI detects transaction:
+
+```typescript
+{
+  user_id: string,
+  user_oauth_token_id: string,
+  source_email: string,
+  source_message_id: string,
+  date: string,
+  amount: number,
+  currency: string,
+  transaction_type: string,
+  transaction_description: string,
+  transaction_date: string,
+  merchant: string,
+  category: string
+}
+```
+
+#### Discarded Storage
+
+If no transaction detected:
+
+```typescript
+{
+  user_oauth_token_id: string,
+  message_id: string,
+  reason: string  // AI reasoning
+}
+```
+
+#### Fallback Processing
+
+If AI fails, uses keyword-based detection (same as [gmail-webhook](/api/edge-functions/gmail-webhook)).
+
+## Configuration
+
+### Constants
+
+<ResponseField name="MONTHS_TO_SEED" type="number" default="3">
+  Number of months of email history to process
+</ResponseField>
+
+<ResponseField name="CHUNK_SIZE" type="number" default="30">
+  Number of messages processed per chunk
+</ResponseField>
+
+<ResponseField name="CONCURRENCY" type="number" default="10">
+  Number of messages processed in parallel within each chunk
+</ResponseField>
+
+### Date Query Format
+
+Gmail query uses format: `after:YYYY/MM/DD`
+
+Example for 3 months ago:
+
+```typescript
+const threeMonthsAgo = new Date()
+threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+const afterDate = threeMonthsAgo.toISOString().split('T')[0].replace(/-/g, '/')
+// Results in: "2024/12/04" for query "after:2024/12/04"
+```
+
+## Notifications
+
+System notifications are created at key points:
+
+### Seed Completed (with transactions)
+
+```typescript
+{
+  typeKey: 'seed_completed_with_transactions',
+  actionPath: '/transactions',
+  iconKey: 'mail',
+  i18nParams: {
+    count: number,
+    totalEmails: number
+  }
+}
+```
+
+### Seed Completed (no new transactions)
+
+```typescript
+{
+  typeKey: 'seed_completed_no_new',
+  actionPath: '/transactions',
+  iconKey: 'mail',
+  i18nParams: {
+    count: 0,
+    totalEmails: number
+  }
+}
+```
+
+### Seed Failed
+
+```typescript
+{
+  typeKey: 'seed_failed',
+  actionPath: '/settings',
+  iconKey: 'alert',
+  i18nParams: {
+    reason: string
+  },
+  metadata: {
+    seedId: string,
+    stage: 'initial' | 'resume'
+  }
+}
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key for database access
+
+### Token Refresh
+
+Ensures fresh access tokens before each Gmail API call:
+
+```typescript
+await ensureFreshAccessToken(supabase, tokenData, 'seed_chunk')
+```
+
+### Error Recovery
+
+Handles token reconnection gracefully:
+
+1. Catches `GmailReconnectRequiredError`
+2. Updates seed status to "failed"
+3. Returns 409 Conflict with `reconnectRequired: true`
+4. Creates system notification for user
+
+### Self-Invocation Pattern
+
+Uses fire-and-forget HTTP request to avoid timeout limits:
+
+```typescript
+fetch(url, options).catch(err => console.error('Auto-invoke failed:', err))
+```
+
+This allows processing to continue asynchronously across multiple function invocations.
+
+### Database Transactions
+
+Uses `upsert` operations to handle duplicate processing gracefully.
+
+### User Context
+
+Retrieves user metadata for AI personalization:
+
+```typescript
+const { data: userData } = await supabase.auth.admin.getUserById(userId)
+const userFullName = userData?.user?.user_metadata?.full_name
+```
+
+## Best Practices
+
+### Frontend Integration
+
+1. **Poll for Progress** - Periodically query seed status while `status === 'processing'`
+2. **Show Progress** - Display `processed / total` to user
+3. **Handle Errors** - Check for `reconnectRequired` and prompt re-authentication
+4. **Prevent Duplicates** - Check for existing in-progress seeds before starting new ones
+
+### Performance Optimization
+
+- Chunking prevents timeout on large mailboxes
+- Parallel processing speeds up AI analysis
+- Auto-invocation distributes load across multiple function instances
+
+### Error Handling
+
+- Monitor `status` field in seeds table
+- Check `error_message` for failure details
+- Implement retry logic for 500 errors
+- Handle token expiration with reconnection flow
+
+## Related Functions
+
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Real-time processing of new emails
+- [process-document](/api/edge-functions/process-document) - Similar AI processing for uploaded files
+- [auth-callback](/api/edge-functions/auth-callback) - Initial OAuth connection setup

@@ -1,0 +1,327 @@
+---
+title: 'Notifications'
+description: 'Stay informed with in-app notifications and manage your notification preferences'
+icon: 'bell'
+---
+
+## Overview
+
+Money Tracker's notification system keeps you informed about important events like new transactions, Gmail sync issues, and subscription updates. All notifications appear in the in-app notification panel with customizable preferences.
+
+## Notification Types
+
+Money Tracker sends notifications for these events:
+
+### System Notifications
+
+<CardGroup cols={2}>
+  <Card title="Gmail Connection Required" icon="plug">
+    **Category**: System
+    
+    Notifies you when a Gmail account needs reconnection due to expired OAuth tokens.
+    
+    **Action**: Go to Settings to reconnect
+  </Card>
+  <Card title="Watch Renewal Needed" icon="clock">
+    **Category**: System
+    
+    Alerts when a Gmail Watch is expiring soon (within 72 hours) and needs renewal.
+    
+    **Action**: Watches auto-renew, but you can manually trigger in Settings
+  </Card>
+  <Card title="Gmail Sync Error" icon="triangle-exclamation">
+    **Category**: System
+    
+    Notifies about errors during Gmail synchronization or email processing.
+    
+    **Action**: Check Settings for connection status
+  </Card>
+</CardGroup>
+
+### Transaction Notifications
+
+<CardGroup cols={2}>
+  <Card title="New Transaction Detected" icon="receipt">
+    **Category**: Transactions
+    
+    Sent when the AI successfully extracts a transaction from an email.
+    
+    **Action**: View transaction in Transactions page
+  </Card>
+  <Card title="Large Transaction Alert" icon="dollar-sign">
+    **Category**: Transactions
+    
+    Alerts for unusually large transactions (threshold configurable).
+    
+    **Action**: Review transaction details
+  </Card>
+</CardGroup>
+
+### Email Processing Notifications
+
+<CardGroup cols={2}>
+  <Card title="Email Import Started" icon="download">
+    **Category**: Import
+    
+    Confirms that a historical email import (seed) has started.
+    
+    **Action**: Monitor progress on Dashboard
+  </Card>
+  <Card title="Email Import Completed" icon="circle-check">
+    **Category**: Import
+    
+    Notifies when email import finishes, showing:
+    - Total emails processed
+    - Transactions found
+    - Emails skipped
+    
+    **Action**: View imported transactions
+  </Card>
+  <Card title="Email Import Failed" icon="circle-xmark">
+    **Category**: Import
+    
+    Sent if email import encounters an error.
+    
+    **Action**: Retry import from Settings
+  </Card>
+</CardGroup>
+
+## Notification Panel
+
+### Opening Notifications
+
+Click the bell icon in the top navigation bar to open the notification panel.
+
+The panel shows:
+- **Unread count badge**: Number of unread notifications
+- **Notification list**: Most recent notifications (up to 50)
+- **Quick actions**: Mark as read, archive, delete
+
+### Notification Card
+
+Each notification displays:
+
+- **Icon**: Visual indicator of notification type
+- **Title**: Short description
+- **Body**: Detailed message
+- **Timestamp**: When the notification was created
+- **Action button** (optional): Quick link to relevant page
+- **Importance badge**: Normal, high, or urgent
+
+### Notification Actions
+
+<Tabs>
+  <Tab title="Mark as Read">
+    Click on a notification to mark it as read and reduce the unread count
+  </Tab>
+  <Tab title="Archive">
+    Remove notifications from the main list without deleting them
+  </Tab>
+  <Tab title="Delete">
+    Permanently remove notifications
+  </Tab>
+  <Tab title="Mute">
+    Silence notifications without deleting (they still appear but don't show badges)
+  </Tab>
+</Tabs>
+
+## Notification Preferences
+
+Customize which notifications you receive in Settings.
+
+### Managing Preferences
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Click "Settings" in the sidebar
+  </Step>
+  <Step title="Scroll to Notification Preferences">
+    Find the "Notification Preferences" section
+  </Step>
+  <Step title="Configure each notification type">
+    For each notification type, you can:
+    - **Enable/Disable**: Toggle to receive or block notifications
+    - **Mute**: Silence notifications temporarily
+  </Step>
+  <Step title="Save automatically">
+    Changes are saved instantly
+  </Step>
+</Steps>
+
+### Preference Options
+
+Each notification type has two toggles:
+
+<AccordionGroup>
+  <Accordion title="Receive" icon="bell">
+    **Enabled**: You'll receive this notification type
+    
+    **Disabled**: This notification type is completely blocked
+  </Accordion>
+  <Accordion title="Mute" icon="bell-slash">
+    **Not Muted**: Notifications show normally with unread badges
+    
+    **Muted**: Notifications still appear in the panel but:
+    - Don't show unread badges
+    - Don't increment the unread count
+    - Useful for less urgent notifications
+  </Accordion>
+</AccordionGroup>
+
+### Notification Categories
+
+Preferences are organized by category:
+
+- **System**: Connection issues, watch renewals, sync errors
+- **Transactions**: New transactions, large amounts
+- **Import**: Email import status updates
+- **Subscriptions** (coming soon): Renewal reminders, price changes
+
+## Notification Importance
+
+Notifications are tagged with importance levels:
+
+<CardGroup cols={3}>
+  <Card title="Normal" icon="circle" color="#6b7280">
+    Informational notifications
+    
+    **Examples**: New transaction detected, import completed
+  </Card>
+  <Card title="High" icon="exclamation" color="#f59e0b">
+    Requires attention
+    
+    **Examples**: Large transaction, watch expiring soon
+  </Card>
+  <Card title="Urgent" icon="triangle-exclamation" color="#ef4444">
+    Requires immediate action
+    
+    **Examples**: Gmail sync error, connection required
+  </Card>
+</CardGroup>
+
+### Filtering by Importance
+
+You can filter notifications in the panel by importance level to focus on what matters most.
+
+## Notification Deduplication
+
+Money Tracker prevents notification spam using deduplication:
+
+### How It Works
+
+- Each notification has a `dedupe_key` (e.g., `gmail-sync-error-{userId}-{email}`)
+- If a notification with the same key exists within the deduplication window, a new one is not created
+- **Default window**: 180 minutes (3 hours)
+
+### Example
+
+If Gmail sync fails multiple times in 3 hours:
+- First failure: Notification sent
+- Subsequent failures: No additional notifications for 3 hours
+- After 3 hours: New notification can be sent if the issue persists
+
+This prevents your notification panel from being flooded with duplicate alerts.
+
+## Dashboard Tasks
+
+In addition to notifications, the Dashboard shows "Smart Tasks" that require action:
+
+<CardGroup cols={2}>
+  <Card title="Reconnect Gmail" icon="plug" color="#ef4444">
+    **Priority**: High
+    
+    One or more Gmail accounts need reconnection
+    
+    **Action**: Click to go to Settings
+  </Card>
+  <Card title="Renew Watch" icon="clock" color="#f59e0b">
+    **Priority**: Medium
+    
+    Gmail Watches are expiring soon or expired
+    
+    **Action**: Automatic renewal in progress
+  </Card>
+  <Card title="Email Import Processing" icon="download" color="#3b82f6">
+    **Priority**: Info
+    
+    Shows real-time progress of email import:
+    - Total emails fetched
+    - Processed by AI
+    - Transactions found
+    
+    **Action**: Monitor progress
+  </Card>
+  <Card title="Email Import Failed" icon="circle-xmark" color="#ef4444">
+    **Priority**: High
+    
+    Email import encountered an error
+    
+    **Action**: Click to retry import
+  </Card>
+</CardGroup>
+
+### Task Priority Levels
+
+- **High**: Requires immediate attention (red badge)
+- **Medium**: Should be addressed soon (yellow badge)
+- **Info**: Informational, no action required (blue badge)
+
+## AI Activity Stats
+
+The Dashboard also displays AI processing metrics:
+
+- **Emails Processed by AI**: Total count of emails analyzed
+- **Transactions Found**: Number of valid transactions extracted
+- **Emails Skipped**: Emails without transactions
+
+These aren't notifications but provide real-time visibility into AI activity.
+
+## Best Practices
+
+<Tip>
+Optimize your notification experience
+</Tip>
+
+1. **Enable critical notifications**: Keep system and error notifications enabled
+2. **Mute routine updates**: Mute "New Transaction" if you check transactions regularly
+3. **Review periodically**: Check notification preferences monthly to adjust based on your needs
+4. **Act on urgent notifications**: Respond quickly to connection and sync error alerts
+5. **Archive old notifications**: Keep your notification panel clean by archiving read items
+
+## Troubleshooting
+
+### Not Receiving Notifications
+
+1. **Check preferences**: Ensure the notification type is enabled in Settings
+2. **Verify events are occurring**: For example, new transactions require new emails
+3. **Check notification panel**: Notifications are in-app only, not push notifications
+
+### Too Many Notifications
+
+1. **Mute less important types**: Use the mute toggle for routine notifications
+2. **Adjust thresholds**: Some notifications have configurable thresholds (coming soon)
+3. **Archive read notifications**: Clear out old notifications regularly
+
+### Missing Notification Actions
+
+If action buttons don't appear:
+- Not all notifications have actions (e.g., informational notifications)
+- Action paths are set by the system automatically
+- Click on the notification text to navigate to the relevant page
+
+## Future Enhancements
+
+Planned notification features:
+
+- Email notifications (opt-in)
+- Push notifications (mobile)
+- Subscription renewal reminders
+- Budget alerts
+- Spending pattern insights
+- Configurable notification thresholds
+
+## Related Features
+
+- [Gmail Integration](/features/gmail-integration) - Connection and sync notifications
+- [Transactions](/features/transactions) - Transaction detection notifications
+- [Subscriptions](/features/subscriptions) - Subscription alerts (coming soon)

@@ -1,0 +1,211 @@
+---
+title: 'auth-callback'
+description: 'Handles Google OAuth callback and stores Gmail credentials'
+---
+
+## Overview
+
+Handles the OAuth 2.0 callback from Google after user authorization. Exchanges the authorization code for access and refresh tokens, retrieves the user's Gmail profile, stores tokens in the database, and sets up Gmail push notifications.
+
+## Endpoint
+
+```
+GET /functions/v1/auth-callback
+```
+
+## Authentication
+
+Authentication is verified via the `state` parameter, which contains the original Supabase JWT token passed from `auth-start`.
+
+## Request
+
+### Query Parameters
+
+<ParamField query="code" type="string" required>
+  Authorization code provided by Google OAuth after user consent
+</ParamField>
+
+<ParamField query="state" type="string" required>
+  Supabase JWT token passed through the OAuth flow for session continuity and CSRF protection
+</ParamField>
+
+<ParamField query="error" type="string">
+  OAuth error code if the user denied access or an error occurred during authorization
+</ParamField>
+
+### Example Request
+
+This endpoint is called automatically by Google's OAuth flow:
+
+```
+https://your-project.supabase.co/functions/v1/auth-callback?code=4/0Adeu5BW...&state=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+## Response
+
+This endpoint performs a 302 redirect back to the frontend application with status parameters.
+
+### Success Redirect
+
+Redirects to: `{FRONTEND_URL}/settings?success=true&email={gmail_email}`
+
+### Error Redirect
+
+Redirects to: `{FRONTEND_URL}/settings?error=oauth_failed&reason={error_reason}`
+
+### Error Reasons
+
+<ResponseField name="oauth_denied" type="string">
+  User denied OAuth consent
+</ResponseField>
+
+<ResponseField name="no_code" type="string">
+  Authorization code missing from callback
+</ResponseField>
+
+<ResponseField name="no_state" type="string">
+  State parameter missing (CSRF protection)
+</ResponseField>
+
+<ResponseField name="invalid_state" type="string">
+  State token verification failed
+</ResponseField>
+
+<ResponseField name="missing_credentials" type="string">
+  OAuth client credentials not configured
+</ResponseField>
+
+<ResponseField name="token_exchange_failed" type="string">
+  Failed to exchange authorization code for tokens
+</ResponseField>
+
+<ResponseField name="profile_failed" type="string">
+  Failed to retrieve Gmail profile
+</ResponseField>
+
+<ResponseField name="no_email" type="string">
+  Could not retrieve Gmail email address
+</ResponseField>
+
+<ResponseField name="token_save_failed" type="string">
+  Failed to save tokens to database
+</ResponseField>
+
+<ResponseField name="token_update_failed" type="string">
+  Failed to update existing token
+</ResponseField>
+
+<ResponseField name="internal_error" type="string">
+  Unexpected internal server error
+</ResponseField>
+
+## Database Operations
+
+### Tokens Storage
+
+Stores OAuth tokens in the `user_oauth_tokens` table:
+
+```typescript
+{
+  user_id: string,              // Authenticated user ID
+  access_token: string,         // Gmail API access token
+  refresh_token: string | null, // Refresh token for token renewal
+  token_type: string,           // Usually "Bearer"
+  expires_at: string | null,    // ISO timestamp of token expiration
+  scope: string | null,         // Granted OAuth scopes
+  gmail_email: string,          // User's Gmail address
+  is_active: boolean            // Set to true
+}
+```
+
+### Token Updates
+
+If a token already exists for the same `user_id` and `gmail_email`, the function updates the existing record instead of creating a duplicate. This handles reconnection scenarios.
+
+### Gmail Watch Setup
+
+After storing tokens, the function automatically configures Gmail push notifications:
+
+1. Calls Gmail API's `watch` endpoint with the user's access token
+2. Subscribes to `INBOX` label changes
+3. Configures Google Cloud Pub/Sub topic for notifications
+4. Stores watch metadata in `gmail_watches` table
+
+```typescript
+{
+  user_id: string,
+  gmail_email: string,
+  watch_id: string | null,      // Gmail history ID
+  topic_name: string,           // Pub/Sub topic name
+  label_ids: string[],          // Watched labels (INBOX)
+  expiration: string | null,    // Watch expiration timestamp
+  history_id: string | null,    // Current Gmail history ID
+  is_active: boolean
+}
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `GOOGLE_CLIENT_ID` - Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
+- `OAUTH_REDIRECT_URI` - OAuth callback URL (this endpoint)
+- `FRONTEND_URL` - Frontend application URL for redirects
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` - Supabase anonymous key (for token verification)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for database operations)
+- `GOOGLE_PROJECT_ID` - Google Cloud project ID (for Gmail watch setup)
+- `PUBSUB_TOPIC` - Pub/Sub topic name (default: `gmail-notifications`)
+
+### OAuth Token Exchange
+
+The function exchanges the authorization code for tokens by making a POST request to:
+
+```
+https://oauth2.googleapis.com/token
+```
+
+With parameters:
+- `client_id`
+- `client_secret`
+- `code` (authorization code)
+- `grant_type=authorization_code`
+- `redirect_uri`
+
+### Gmail Profile Retrieval
+
+Retrieves user's Gmail profile from:
+
+```
+https://www.googleapis.com/gmail/v1/users/me/profile
+```
+
+This provides the `emailAddress` field used to identify the connected account.
+
+### Watch Configuration
+
+Configures push notifications via Gmail API:
+
+```
+https://www.googleapis.com/gmail/v1/users/me/watch
+```
+
+With body:
+```json
+{
+  "labelIds": ["INBOX"],
+  "topicName": "projects/{project-id}/topics/{topic-name}",
+  "labelFilterAction": "include"
+}
+```
+
+<Note>
+Gmail watches expire after 7 days and must be renewed. See [renew-watches](/api/edge-functions/renew-watches) for automatic renewal.
+</Note>
+
+## Related Functions
+
+- [auth-start](/api/edge-functions/auth-start) - Initiates the OAuth flow
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Processes notifications from Gmail watches
+- [renew-watches](/api/edge-functions/renew-watches) - Renews expiring Gmail watches

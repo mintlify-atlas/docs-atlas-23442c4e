@@ -1,0 +1,414 @@
+---
+title: 'process-document'
+description: 'Extract transactions from manually uploaded receipt and invoice files'
+---
+
+## Overview
+
+Processes user-uploaded files (images and PDFs) to extract transaction information using AI. Similar to email processing but handles direct file uploads from the frontend application.
+
+## Endpoint
+
+```
+POST /functions/v1/process-document
+```
+
+## Authentication
+
+Requires valid Supabase authentication. The JWT token must be provided in the `Authorization` header.
+
+## Request
+
+### Headers
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token with Supabase JWT
+  
+  Format: `Bearer {token}`
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  MIME type of the uploaded file:
+  - `image/jpeg`
+  - `image/jpg`
+  - `image/png`
+  - `application/pdf`
+</ParamField>
+
+<ParamField header="x-file-name" type="string">
+  Original filename (optional, defaults to "unknown")
+</ParamField>
+
+### Request Body
+
+Raw binary file data (not multipart/form-data).
+
+### Supported File Types
+
+- **Images**: JPEG, JPG, PNG
+- **Documents**: PDF
+
+### File Size Limit
+
+**Maximum**: 5 MB
+
+### Example Request
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/process-document' \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: image/jpeg' \
+  --header 'x-file-name: receipt.jpg' \
+  --data-binary '@/path/to/receipt.jpg'
+```
+
+```bash
+curl -i --location --request POST \
+  'https://your-project.supabase.co/functions/v1/process-document' \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' \
+  --header 'Content-Type: application/pdf' \
+  --header 'x-file-name: invoice.pdf' \
+  --data-binary '@/path/to/invoice.pdf'
+```
+
+## Response
+
+### Success Response
+
+When a transaction is successfully extracted:
+
+```json
+{
+  "success": true,
+  "transaction": {
+    "id": "uuid",
+    "user_id": "uuid",
+    "source_email": "manual-upload",
+    "source_message_id": "manual-1234567890-abc123xyz",
+    "date": "2024-03-04T10:30:00.000Z",
+    "amount": 42.99,
+    "currency": "USD",
+    "transaction_type": "expense",
+    "transaction_description": "Coffee and pastries",
+    "transaction_date": "2024-03-04",
+    "merchant": "Local Cafe",
+    "category": "food"
+  },
+  "message": "Transaction created successfully from document"
+}
+```
+
+<ResponseField name="success" type="boolean">
+  Indicates successful transaction creation
+</ResponseField>
+
+<ResponseField name="transaction" type="object">
+  Complete transaction object as stored in database
+  
+  <ResponseField name="transaction.id" type="string">
+    Unique transaction ID (UUID)
+  </ResponseField>
+  
+  <ResponseField name="transaction.user_id" type="string">
+    User ID who uploaded the document
+  </ResponseField>
+  
+  <ResponseField name="transaction.source_email" type="string">
+    Always "manual-upload" for uploaded files
+  </ResponseField>
+  
+  <ResponseField name="transaction.source_message_id" type="string">
+    Unique identifier in format `manual-{timestamp}-{random}`
+  </ResponseField>
+  
+  <ResponseField name="transaction.amount" type="number">
+    Transaction amount extracted by AI
+  </ResponseField>
+  
+  <ResponseField name="transaction.currency" type="string">
+    Currency code (USD, EUR, GBP, etc.)
+  </ResponseField>
+  
+  <ResponseField name="transaction.transaction_type" type="string">
+    Type of transaction: "expense" or "income"
+  </ResponseField>
+  
+  <ResponseField name="transaction.transaction_description" type="string">
+    Description extracted by AI
+  </ResponseField>
+  
+  <ResponseField name="transaction.transaction_date" type="string">
+    Date in YYYY-MM-DD format
+  </ResponseField>
+  
+  <ResponseField name="transaction.merchant" type="string">
+    Merchant/vendor name extracted by AI
+  </ResponseField>
+  
+  <ResponseField name="transaction.category" type="string">
+    Transaction category (e.g., "food", "transport", "entertainment")
+  </ResponseField>
+</ResponseField>
+
+### No Transaction Found
+
+When AI cannot extract transaction data:
+
+```json
+{
+  "success": false,
+  "error": "Could not extract transaction data from document"
+}
+```
+
+or with AI reasoning:
+
+```json
+{
+  "success": false,
+  "error": "This appears to be a personal email, not a receipt or invoice"
+}
+```
+
+## Error Responses
+
+### 400 Bad Request
+
+#### Missing File
+
+```json
+{
+  "error": "No file provided"
+}
+```
+
+#### File Too Large
+
+```json
+{
+  "error": "File too large. Maximum size is 5MB."
+}
+```
+
+#### Unsupported File Type
+
+```json
+{
+  "error": "Unsupported file type. Only PDF and image files are allowed."
+}
+```
+
+#### PDF Processing Error
+
+```json
+{
+  "error": "Could not extract text from PDF"
+}
+```
+
+### 401 Unauthorized
+
+Returned when authentication fails or token is invalid.
+
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+### 405 Method Not Allowed
+
+Returned when using any HTTP method other than POST.
+
+```json
+{
+  "error": "Method not allowed"
+}
+```
+
+### 500 Internal Server Error
+
+#### PDF Processing Failed
+
+```json
+{
+  "error": "Failed to process PDF file"
+}
+```
+
+#### Database Error
+
+```json
+{
+  "error": "Failed to save transaction"
+}
+```
+
+#### General Error
+
+```json
+{
+  "error": "Internal server error"
+}
+```
+
+## Processing Flow
+
+### 1. Authentication
+
+Verifies Supabase JWT token from `Authorization` header.
+
+### 2. File Validation
+
+- Checks file size (max 5 MB)
+- Validates content type
+- Reads file as binary data
+
+### 3. File Processing
+
+#### For PDFs
+
+Uses `unpdf` library to extract text:
+
+```typescript
+const pdf = await getDocumentProxy(fileBytes)
+const { text } = await extractText(pdf, { mergePages: true })
+```
+
+Extracted text is passed to AI for analysis.
+
+#### For Images
+
+Converts image bytes to `ImageAttachment` format:
+
+```typescript
+{
+  data: Uint8Array,
+  mimeType: string,  // Normalized to 'image/jpeg' for 'image/jpg'
+  filename: string
+}
+```
+
+Image data is passed to AI vision for analysis.
+
+### 4. User Context
+
+Retrieves user's full name from Supabase Auth metadata to provide context for AI analysis.
+
+### 5. AI Analysis
+
+Calls `extractTransactionFromEmail()` with:
+
+- Document content description
+- User's full name
+- Image attachments (for images)
+- Extracted text (for PDFs)
+
+The AI analyzes:
+
+- Receipt/invoice structure
+- Transaction amounts
+- Merchant information
+- Dates
+- Item descriptions
+- Currency
+
+### 6. Transaction Storage
+
+If AI successfully extracts transaction data, stores in `transactions` table:
+
+```typescript
+{
+  user_id: string,
+  source_email: 'manual-upload',
+  source_message_id: `manual-${Date.now()}-${randomString}`,
+  date: string,  // Current timestamp
+  amount: number,
+  currency: string,
+  transaction_type: string,
+  transaction_description: string,
+  transaction_date: string,
+  merchant: string,
+  category: string
+}
+```
+
+### 7. Langfuse Flush
+
+Flushes AI observability events:
+
+```typescript
+const { flushLangfuse } = await import("../_shared/lib/langfuse.ts")
+await flushLangfuse()
+```
+
+## Implementation Details
+
+### Environment Variables Required
+
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key for database access
+
+### Image Format Normalization
+
+The function normalizes `image/jpg` to `image/jpeg` for consistency:
+
+```typescript
+const normalizedMimeType = contentType === 'image/jpg' ? 'image/jpeg' : contentType
+```
+
+### Source Identification
+
+Manually uploaded transactions are marked with:
+
+- `source_email`: "manual-upload"
+- `source_message_id`: Unique ID in format `manual-{timestamp}-{random}`
+
+This distinguishes them from email-based transactions.
+
+### PDF Text Extraction
+
+Uses the `unpdf` NPM package:
+
+```typescript
+import { extractText, getDocumentProxy } from 'npm:unpdf'
+```
+
+Extracts text with `mergePages: true` option to combine all pages.
+
+### User Metadata Access
+
+Retrieves user metadata via Admin API:
+
+```typescript
+const { data: userData } = await supabase.auth.admin.getUserById(user.id)
+const userFullName = userData?.user?.user_metadata?.full_name
+```
+
+## Best Practices
+
+### Frontend Integration
+
+1. Use `Content-Type` header matching the actual file type
+2. Send raw binary data (not form-encoded)
+3. Include `x-file-name` header with original filename
+4. Handle both success (`success: true`) and no-transaction (`success: false`) responses
+5. Implement retry logic for 500 errors
+
+### File Optimization
+
+1. Resize large images before upload to stay under 5 MB
+2. Compress images while maintaining readability
+3. For PDFs, ensure text is extractable (not scanned images)
+
+### Error Handling
+
+- Display clear error messages from `error` field
+- For "no transaction found" responses, allow users to manually enter data
+- Log failures for debugging
+
+## Related Functions
+
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Similar AI processing for email-based transactions
+- [seed-emails](/api/edge-functions/seed-emails) - Bulk processing of historical emails
