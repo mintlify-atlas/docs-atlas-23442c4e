@@ -1,0 +1,134 @@
+---
+title: "health"
+description: "System health check endpoint for monitoring service status"
+icon: "heart-pulse"
+---
+
+## Overview
+
+The health check endpoint provides a simple way to monitor the status of Money Tracker's backend Edge Functions. It returns basic service information and can be used by monitoring tools or load balancers.
+
+## Endpoint
+
+```
+GET /health
+```
+
+## Authentication
+
+No authentication required. This is a public endpoint.
+
+## Request
+
+This endpoint accepts no parameters.
+
+```bash cURL
+curl https://your-project.supabase.co/functions/v1/health
+```
+
+## Response
+
+### Success Response (200)
+
+<ResponseField name="status" type="string">
+  Service status - always "ok" when healthy
+</ResponseField>
+
+<ResponseField name="check_timestamp" type="string">
+  ISO 8601 timestamp of the health check
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  Platform identifier - "supabase-edge-functions"
+</ResponseField>
+
+<ResponseField name="service" type="string">
+  Service name - "money-tracker-backend"
+</ResponseField>
+
+<ResponseField name="environment" type="string">
+  Current environment (development, staging, production)
+</ResponseField>
+
+```json Example Response
+{
+  "status": "ok",
+  "check_timestamp": "2024-03-15T10:30:00.000Z",
+  "version": "supabase-edge-functions",
+  "service": "money-tracker-backend",
+  "environment": "production"
+}
+```
+
+### Error Response (500)
+
+<ResponseField name="status" type="string">
+  Service status - "error" when unhealthy
+</ResponseField>
+
+<ResponseField name="check_timestamp" type="string">
+  ISO 8601 timestamp of the failed check
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message
+</ResponseField>
+
+```json Error Response
+{
+  "status": "error",
+  "check_timestamp": "2024-03-15T10:30:00.000Z",
+  "error": "Health check failed"
+}
+```
+
+## Use Cases
+
+### Monitoring Systems
+
+Configure your monitoring tools (like UptimeRobot, Pingdom, or Datadog) to periodically check this endpoint:
+
+```bash
+# Simple availability check
+curl -f https://your-project.supabase.co/functions/v1/health || echo "Service down"
+```
+
+### Load Balancer Health Checks
+
+If deploying behind a load balancer, configure it to use this endpoint for health checks with a 200 status code as the success condition.
+
+### CI/CD Pipeline Verification
+
+Use this endpoint in deployment scripts to verify the service is running after deployment:
+
+```bash Deployment Script
+#!/bin/bash
+# Wait for service to be healthy
+for i in {1..30}; do
+  if curl -f https://your-project.supabase.co/functions/v1/health; then
+    echo "Service is healthy"
+    exit 0
+  fi
+  echo "Waiting for service to be healthy..."
+  sleep 2
+done
+echo "Service health check timeout"
+exit 1
+```
+
+## Implementation Details
+
+This endpoint:
+- Responds within milliseconds
+- Does not check database connectivity (basic service health only)
+- Returns environment information from the `ENVIRONMENT` environment variable
+- Uses CORS headers to allow cross-origin requests
+
+<Note>
+This is a lightweight health check that only verifies the Edge Function runtime is responding. It does not test database connectivity or external service availability.
+</Note>
+
+## Related Functions
+
+- [auth-start](/api/edge-functions/auth-start) - Initiate Gmail OAuth
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Process Gmail notifications

@@ -44,7 +44,8 @@
               "features/ai-extraction",
               "features/multi-currency",
               "features/subscriptions",
-              "features/notifications"
+              "features/notifications",
+              "features/analytics"
             ]
           },
           {
@@ -67,9 +68,11 @@
               "api/edge-functions/auth-start",
               "api/edge-functions/auth-callback",
               "api/edge-functions/gmail-webhook",
+              "api/edge-functions/gmail-disconnect",
               "api/edge-functions/process-document",
               "api/edge-functions/seed-emails",
-              "api/edge-functions/renew-watches"
+              "api/edge-functions/renew-watches",
+              "api/edge-functions/health"
             ]
           },
           {

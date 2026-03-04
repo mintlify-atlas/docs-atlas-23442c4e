@@ -1,0 +1,276 @@
+---
+title: "Analytics & Insights"
+description: "Visualize spending patterns, track trends, and gain financial insights"
+icon: "chart-line"
+---
+
+## Overview
+
+The Analytics page provides comprehensive financial insights through interactive charts, spending breakdowns, and trend analysis. View your income and expenses across different time periods and currencies to understand your financial health.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Time Period Analysis" icon="calendar">
+    Compare metrics across 30, 90, or 365-day periods
+  </Card>
+  <Card title="Currency Filtering" icon="coins">
+    View analytics for all currencies or filter by specific currency
+  </Card>
+  <Card title="Category Breakdown" icon="chart-pie">
+    See spending distribution across expense categories
+  </Card>
+  <Card title="Monthly Trends" icon="chart-line">
+    Track income, expenses, and net balance over time
+  </Card>
+</CardGroup>
+
+## Metric Cards
+
+The dashboard displays four key financial metrics at the top:
+
+### Total Income
+
+Shows total income for the selected period with trend comparison to the previous period:
+- **Value**: Sum of all income transactions
+- **Trend**: Percentage change vs. previous period
+- **Icon**: Green up arrow for increase, red down arrow for decrease
+
+### Total Expenses
+
+Displays total expenses with period-over-period comparison:
+- **Value**: Sum of all expense transactions (displayed as negative)
+- **Trend**: Percentage change vs. previous period
+- **Color**: Red for increases (more spending), green for decreases (less spending)
+
+### Net Balance
+
+Calculates net financial position (income minus expenses):
+- **Value**: Total income - Total expenses
+- **Trend**: Percentage change in net balance
+- **Interpretation**: Positive is good (surplus), negative means spending exceeds income
+
+### Transaction Count
+
+Total number of transactions processed:
+- **Value**: Count of all transactions in period
+- **Trend**: Change in transaction volume
+- **Use case**: Track activity level and data completeness
+
+## Time Period Selection
+
+Choose from three predefined periods:
+
+| Period | Days | Best For |
+|--------|------|----------|
+| **30 days** | Last 30 days | Short-term spending patterns |
+| **90 days** | Last 90 days | Quarterly analysis |
+| **365 days** | Last 365 days | Annual trends and seasonal patterns |
+
+The analytics automatically adjust to show:
+- Current period metrics
+- Previous period comparison (for trend percentages)
+- Appropriate chart granularity
+
+## Currency Filtering
+
+When you have transactions in multiple currencies, the currency filter becomes available:
+
+<Tabs>
+  <Tab title="All Currencies">
+    Displays combined view of all transactions. Each currency's amounts are shown in their native currency without conversion.
+    
+    **Use case**: Get a complete picture of all financial activity
+  </Tab>
+  
+  <Tab title="Single Currency">
+    Filter to show only transactions in a specific currency (USD, EUR, GBP, ARS, etc.).
+    
+    **Use case**: Focus on transactions in your primary currency or a specific account
+  </Tab>
+</Tabs>
+
+<Note>
+Money Tracker does not perform automatic currency conversion. Multi-currency views show amounts in their original currencies side-by-side.
+</Note>
+
+## Monthly Trend Chart
+
+The interactive line chart visualizes your financial trajectory over time:
+
+### Chart Elements
+
+- **Income Line** (green): Monthly income totals
+- **Expense Line** (red): Monthly expense totals  
+- **Net Line** (blue): Monthly net balance (income - expenses)
+- **X-axis**: Month labels (e.g., "Jan 2024")
+- **Y-axis**: Amount with currency symbol
+
+### Interactions
+
+- **Hover**: View exact values for each month
+- **Legend**: Click to show/hide individual lines
+- **Responsive**: Adjusts to screen size automatically
+
+### Data Grouping
+
+Transactions are grouped by month based on the `transaction_date` field. The chart shows up to 12 months of data depending on the selected period.
+
+## Category Breakdown
+
+The pie chart shows expense distribution across categories:
+
+### Included Categories
+
+All expense categories are visualized (income transactions excluded):
+
+- **Food & Dining** - Restaurant meals, groceries, coffee
+- **Transportation** - Gas, public transit, ride-sharing
+- **Shopping** - Retail purchases, online shopping
+- **Entertainment** - Movies, games, streaming services
+- **Bills & Utilities** - Electricity, water, internet, phone
+- **Healthcare** - Medical expenses, pharmacy, insurance
+- **Travel** - Hotels, flights, vacation expenses
+- **Education** - Courses, books, tuition
+- **Other** - Miscellaneous expenses
+- **Uncategorized** - Expenses without assigned category
+
+### Chart Features
+
+- **Color-coded**: Each category has a distinct color
+- **Percentage labels**: Show % of total expenses
+- **Interactive**: Hover to see exact amounts
+- **Legend**: Lists all categories with colors
+
+<Tip>
+Large "Uncategorized" sections suggest you should review and categorize those transactions for better insights.
+</Tip>
+
+## Insights Section
+
+Below the charts, Money Tracker provides automated insights based on your transaction patterns:
+
+### Spending Insights
+
+- **Top expense category**: Identifies where you spend the most
+- **Largest transaction**: Highlights your biggest expense in the period
+- **Average transaction**: Shows typical transaction size
+- **Spending pattern**: Describes overall trend (increasing, decreasing, stable)
+
+### Income Insights
+
+- **Top income source**: Identifies main income category (if applicable)
+- **Income stability**: Analyzes regularity of income
+- **Income growth**: Compares to previous period
+
+## Currency Comparison
+
+When using multiple currencies, the Currency Comparison section appears showing:
+
+<AccordionGroup>
+  <Accordion title="Per-Currency Totals">
+    Separate income, expense, and net totals for each currency detected in your transactions.
+    
+    ```
+    USD: $5,234.00 income, -$3,891.00 expenses, $1,343.00 net
+    EUR: €892.50 income, -€1,234.00 expenses, -€341.50 net
+    ```
+  </Accordion>
+  
+  <Accordion title="Transaction Distribution">
+    Shows what percentage of your transactions are in each currency.
+    
+    Useful for understanding which accounts or regions you're most active in.
+  </Accordion>
+  
+  <Accordion title="Dominant Currency">
+    Highlights which currency represents the largest portion of your financial activity.
+  </Accordion>
+</AccordionGroup>
+
+## Data Source
+
+All analytics are calculated from transactions in the `transactions` table:
+
+- **Real-time**: Updates immediately when new transactions are added
+- **Filtered**: Respects selected time period and currency filters
+- **Complete**: Includes manually added, uploaded, and AI-extracted transactions
+
+## Performance
+
+The analytics page uses efficient queries to handle large transaction volumes:
+
+- **Indexed queries**: Uses database indexes on `transaction_date` and `currency`
+- **Aggregation**: Calculations performed at the database level
+- **Caching**: Frontend caches results using React Query
+- **Lazy loading**: Charts render progressively for large datasets
+
+## Use Cases
+
+### Monthly Budget Tracking
+
+Use the 30-day view to:
+1. Check if spending is within budget
+2. Identify overspending categories
+3. Track progress toward savings goals
+
+### Quarterly Financial Reviews
+
+Use the 90-day view to:
+1. Analyze seasonal spending patterns
+2. Compare quarters year-over-year
+3. Plan for recurring expenses
+
+### Annual Financial Planning
+
+Use the 365-day view to:
+1. Prepare for tax season
+2. Calculate annual savings rate
+3. Identify long-term trends
+4. Set next year's budget
+
+### Travel Expense Tracking
+
+Use currency filtering to:
+1. Isolate expenses during international trips
+2. Calculate total trip costs by currency
+3. Track foreign currency spending separately
+
+## Best Practices
+
+<Steps>
+  <Step title="Categorize transactions regularly">
+    Accurate categories lead to meaningful insights. Review and categorize uncategorized transactions weekly.
+  </Step>
+  
+  <Step title="Use consistent time periods">
+    Compare the same period length (e.g., always 90 days) to identify meaningful trends.
+  </Step>
+  
+  <Step title="Check insights monthly">
+    Review your analytics at the end of each month to stay aware of spending patterns.
+  </Step>
+  
+  <Step title="Act on anomalies">
+    If you see unexpected spikes in certain categories, investigate to ensure all transactions are accurate.
+  </Step>
+</Steps>
+
+## Limitations
+
+Current limitations of the analytics feature:
+
+- **No currency conversion**: Multi-currency amounts are shown separately, not converted to a base currency
+- **No custom date ranges**: Only predefined periods (30/90/365 days) are available
+- **No budget comparisons**: Charts show actuals only, not vs. budget
+- **No export**: Cannot export chart data to CSV/Excel directly
+
+<Info>
+These features may be added in future updates based on user feedback.
+</Info>
+
+## Related Features
+
+- [Transactions](/features/transactions) - Manage and review transaction data
+- [Multi-Currency](/features/multi-currency) - Learn about currency handling
+- [Subscriptions](/features/subscriptions) - Track recurring expenses

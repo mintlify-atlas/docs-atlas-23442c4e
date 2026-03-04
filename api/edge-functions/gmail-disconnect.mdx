@@ -1,0 +1,195 @@
+---
+title: "gmail-disconnect"
+description: "Remove Gmail OAuth connection and stop email processing"
+icon: "link-slash"
+---
+
+## Overview
+
+The gmail-disconnect endpoint handles the disconnection of a Gmail account from Money Tracker. It safely removes OAuth tokens, stops Gmail Watch subscriptions, and preserves existing transaction data.
+
+## Endpoint
+
+```
+DELETE /gmail-disconnect/{connectionId}
+```
+
+## Authentication
+
+**Required**: User must be authenticated with a valid session token.
+
+## Request
+
+### Path Parameters
+
+<ParamField path="connectionId" type="string" required>
+  The ID of the OAuth connection to disconnect (from `user_oauth_tokens` table)
+</ParamField>
+
+```bash cURL
+curl -X DELETE \
+  https://your-project.supabase.co/functions/v1/gmail-disconnect/abc123-def456 \
+  -H "Authorization: Bearer YOUR_SESSION_TOKEN" \
+  -H "apikey: YOUR_SUPABASE_ANON_KEY"
+```
+
+## Response
+
+### Success Response (200)
+
+<ResponseField name="success" type="boolean">
+  Indicates successful disconnection
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message
+</ResponseField>
+
+```json Success Response
+{
+  "success": true,
+  "message": "Gmail disconnected successfully"
+}
+```
+
+### Error Responses
+
+**404 Not Found** - Connection not found or user doesn't own it:
+```json
+{
+  "error": "Connection not found or unauthorized"
+}
+```
+
+**405 Method Not Allowed** - Wrong HTTP method used:
+```json
+{
+  "error": "Method not allowed"
+}
+```
+
+**400 Bad Request** - Missing connection ID:
+```json
+{
+  "error": "Missing connection ID"
+}
+```
+
+**401 Unauthorized** - Missing or invalid authentication:
+```json
+{
+  "error": "Unauthorized"
+}
+```
+
+**500 Internal Server Error** - Failed to disconnect:
+```json
+{
+  "error": "Failed to disconnect Gmail"
+}
+```
+
+## Disconnection Process
+
+When a Gmail account is disconnected, the function performs several steps to safely remove the connection:
+
+<Steps>
+  <Step title="Verify Ownership">
+    Confirms the user owns the OAuth connection by checking `user_id` matches the authenticated user.
+  </Step>
+  
+  <Step title="Check Multi-User Accounts">
+    Determines if other users are connected to the same Gmail account. If multiple users share the account, the watch is preserved for them.
+  </Step>
+  
+  <Step title="Stop Gmail Watch (if last user)">
+    If this is the last user connected to this Gmail account, makes a `POST` request to Google's API to stop the watch:
+    ```
+    POST https://www.googleapis.com/gmail/v1/users/me/stop
+    ```
+  </Step>
+  
+  <Step title="Delete Watch Records">
+    Removes Gmail watch entries from the `gmail_watches` table. If other users are still connected, only removes watches for the current user.
+  </Step>
+  
+  <Step title="Soft Delete Token">
+    Marks the OAuth token as inactive instead of deleting it:
+    - Sets `is_active = false`
+    - Clears `expires_at`
+    - Updates `updated_at` timestamp
+  </Step>
+  
+  <Step title="Preserve Transactions">
+    All existing transactions remain in the database. Users can still view and manage previously imported transactions.
+  </Step>
+</Steps>
+
+## Multi-User Behavior
+
+Money Tracker supports multiple users connecting to the same Gmail account. The disconnect logic handles this gracefully:
+
+| Scenario | Watch Behavior | Watch Records Deleted |
+|----------|----------------|----------------------|
+| Last user disconnecting | Gmail Watch stopped | All records for that email |
+| Other users still connected | Gmail Watch preserved | Only current user's records |
+
+<Warning>
+When a user disconnects, new emails will no longer be processed for that user. However, if other users are still connected to the same Gmail account, they will continue to receive updates.
+</Warning>
+
+## Data Preservation
+
+Important data retention behavior:
+
+- **Transactions**: All imported transactions are preserved
+- **OAuth tokens**: Soft-deleted (marked inactive, not removed)
+- **Gmail watches**: Deleted for the user
+- **Pub/Sub subscriptions**: Remain active if other users are connected
+
+<Info>
+Users can reconnect the same Gmail account later, and historical transactions will still be available.
+</Info>
+
+## Implementation Notes
+
+### Security
+
+- Uses `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS for multi-user checks
+- Verifies user ownership before allowing disconnection
+- Prevents users from disconnecting other users' connections
+
+### Error Handling
+
+The function gracefully handles cases where:
+- The Gmail Watch may not exist (already stopped)
+- The Google API is unavailable
+- The access token is expired
+
+### Logging
+
+Detailed logs are written to help debug disconnection issues:
+```
+Watch stopped for user@example.com (last user)
+Token deactivated for user abc123, transactions preserved
+Not stopping watch for user@example.com (2 other user(s) still connected)
+```
+
+## Frontend Integration
+
+The frontend calls this endpoint via the `gmailService`:
+
+```typescript
+import { gmailService } from '../services/gmail.service';
+
+// Disconnect a Gmail account
+await gmailService.disconnectGmail(connectionId);
+```
+
+See [Gmail Service](/api/services/gmail) for frontend integration details.
+
+## Related Functions
+
+- [auth-start](/api/edge-functions/auth-start) - Connect a Gmail account
+- [auth-callback](/api/edge-functions/auth-callback) - Complete OAuth flow
+- [gmail-webhook](/api/edge-functions/gmail-webhook) - Process emails
